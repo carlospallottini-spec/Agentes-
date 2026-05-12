@@ -1,0 +1,34 @@
+{
+  "negocio": "Selva Negra Pastelería",
+  "moneda": "ARS",
+  "especialidad": "Pastelería de inspiración alemana y centroeuropea",
+  "categorias": {
+    "tortas_clasicas": [
+      {"id": "SN01", "nombre": "Schwarzwälder Kirschtorte (Selva Negra)", "descripcion": "Bizcochuelo de chocolate, crema chantilly, cerezas y kirsch", "porciones": 12, "precio": 22000},
+      {"id": "SN02", "nombre": "Sachertorte", "descripcion": "Bizcochuelo de chocolate vienés con mermelada de damasco y baño espejo", "porciones": 10, "precio": 19500},
+      {"id": "SN03", "nombre": "Apfelstrudel", "descripcion": "Strudel de manzana con pasas, nueces y canela", "porciones": 8, "precio": 12000},
+      {"id": "SN04", "nombre": "Bienenstich", "descripcion": "Brioche con crema pastelera y caramelo de almendras", "porciones": 10, "precio": 15000}
+    ],
+    "tortas_modernas": [
+      {"id": "SN05", "nombre": "Torta de frambuesa y pistacho", "descripcion": "Bizcochuelo de pistacho con mousse de frambuesa", "porciones": 10, "precio": 21000},
+      {"id": "SN06", "nombre": "Tarta de queso y arándanos", "descripcion": "Base crocante, queso crema horneado y arándanos frescos", "porciones": 10, "precio": 17500}
+    ],
+    "panaderia": [
+      {"id": "SN07", "nombre": "Pretzel (Brezel) salado", "unidad": "unidad", "precio": 1400},
+      {"id": "SN08", "nombre": "Pretzel dulce con chocolate", "unidad": "unidad", "precio": 1700},
+      {"id": "SN09", "nombre": "Stollen mini", "descripcion": "Pan dulce alemán con frutas confitadas y mazapán", "unidad": "unidad", "precio": 5500},
+      {"id": "SN10", "nombre": "Berliner", "descripcion": "Bollo relleno de mermelada con azúcar impalpable", "unidad": "unidad", "precio": 1600}
+    ],
+    "individuales": [
+      {"id": "SN11", "nombre": "Linzer", "descripcion": "Galleta de almendras con mermelada de frambuesa", "unidad": "unidad", "precio": 1300},
+      {"id": "SN12", "nombre": "Baumkuchen porción", "descripcion": "Torta de capas con baño de chocolate", "unidad": "porción", "precio": 2200}
+    ]
+  },
+  "horarios": {
+    "lunes_a_viernes": "09:00 - 19:30",
+    "sabados": "09:00 - 18:00",
+    "domingos": "10:00 - 14:00"
+  },
+  "tiempo_minimo_pedido_torta_horas": 48,
+  "notas": "Las tortas Selva Negra y Sachertorte requieren al menos 48 hs de anticipación. Stollen disponible todo el año, recomendado para regalos. Aceptamos efectivo, transferencia y tarjetas."
+}

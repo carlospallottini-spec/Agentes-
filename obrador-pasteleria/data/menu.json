@@ -1,0 +1,30 @@
+{
+  "negocio": "Obrador de Pastelería",
+  "moneda": "ARS",
+  "categorias": {
+    "tortas": [
+      {"id": "T01", "nombre": "Torta de chocolate", "descripcion": "Bizcochuelo de chocolate con ganache y frutos rojos", "porciones": 10, "precio": 18000},
+      {"id": "T02", "nombre": "Torta Rogel", "descripcion": "Capas crocantes con dulce de leche y merengue italiano", "porciones": 10, "precio": 17000},
+      {"id": "T03", "nombre": "Lemon pie", "descripcion": "Masa sablée, crema de limón y merengue suizo", "porciones": 8, "precio": 14000},
+      {"id": "T04", "nombre": "Cheesecake de frutos rojos", "descripcion": "Base de galleta, queso crema y coulis de frutos rojos", "porciones": 10, "precio": 16500}
+    ],
+    "individuales": [
+      {"id": "I01", "nombre": "Macaron", "descripcion": "Macarons franceses, sabores surtidos", "unidad": "unidad", "precio": 1200},
+      {"id": "I02", "nombre": "Éclair de chocolate", "descripcion": "Pâte à choux con crema pastelera y baño de chocolate", "unidad": "unidad", "precio": 1800},
+      {"id": "I03", "nombre": "Cupcake red velvet", "descripcion": "Bizcochuelo red velvet con frosting de queso crema", "unidad": "unidad", "precio": 1500}
+    ],
+    "panaderia_dulce": [
+      {"id": "P01", "nombre": "Medialuna de manteca", "unidad": "unidad", "precio": 600},
+      {"id": "P02", "nombre": "Croissant", "unidad": "unidad", "precio": 1100},
+      {"id": "P03", "nombre": "Pan de chocolate", "unidad": "unidad", "precio": 1200},
+      {"id": "P04", "nombre": "Scon de queso", "unidad": "unidad", "precio": 700}
+    ]
+  },
+  "horarios": {
+    "lunes_a_viernes": "08:00 - 20:00",
+    "sabados": "08:00 - 14:00",
+    "domingos": "Cerrado"
+  },
+  "tiempo_minimo_pedido_torta_horas": 24,
+  "notas": "Los pedidos de tortas requieren al menos 24 hs de anticipación. Aceptamos efectivo, transferencia y tarjetas."
+}
