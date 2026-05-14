@@ -1,53 +1,14 @@
-"""CLI de chat para el agente de Selva Negra Pastelería."""
-import sys
+"""Entrypoint del servidor — corre uvicorn con la app de webhooks."""
+import os
 
 from dotenv import load_dotenv
-
-from agent import build_client, responder
-
-BANNER = """
-========================================
-  Selva Negra Pastelería - Asistente
-========================================
-Escribí tu mensaje. Comandos: 'salir' para terminar, 'reset' para limpiar la conversación.
-"""
 
 
 def main() -> int:
     load_dotenv()
-    try:
-        client = build_client()
-    except RuntimeError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-
-    history: list[dict] = []
-    print(BANNER)
-
-    while True:
-        try:
-            user_input = input("Vos > ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            break
-
-        if not user_input:
-            continue
-        if user_input.lower() in {"salir", "exit", "quit"}:
-            break
-        if user_input.lower() == "reset":
-            history.clear()
-            print("(conversación reiniciada)\n")
-            continue
-
-        try:
-            reply = responder(client, history, user_input)
-        except Exception as e:
-            print(f"[error] {e}\n", file=sys.stderr)
-            continue
-
-        print(f"\nSelva Negra > {reply}\n")
-
+    import uvicorn
+    port = int(os.environ.get("PORT", "8000"))
+    uvicorn.run("webhooks:app", host="0.0.0.0", port=port, log_level="info")
     return 0
 
 

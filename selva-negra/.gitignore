@@ -1,6 +1,6 @@
 .env
-credentials/
 data/orders.json
+data/conversations.json
 __pycache__/
 *.pyc
 .venv/
