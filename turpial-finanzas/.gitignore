@@ -1,5 +1,6 @@
 .env
 data/reports/
+data/user_watchlist.json
 __pycache__/
 *.pyc
 .venv/

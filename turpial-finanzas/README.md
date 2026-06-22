@@ -1,14 +1,25 @@
 # Turpial Finanzas 🦜📈
 
-Plataforma tipo **oráculo** con agentes de Wall Street que generan **Risk Scores**
-sobre empresas a partir de **filings primarios** (10-Q, 10-K, 8-K), fundamentales
-XBRL, precio de mercado e insiders (Form 4). Cada análisis se entrega como un
-**dashboard HTML autocontenido** (un archivo, gráficos en Canvas puro, mobile-first,
-sin dependencias externas).
+Plataforma de inversión **todo-en-uno**: buscador universal multi-activo, watchlist
+editable, gráficos en vivo y un **agente IA** embebido que responde cualquier pregunta
+del inversor usando datos reales. Por debajo, un **oráculo** de agentes de Wall Street
+genera **Risk Scores** de acciones a partir de filings primarios y corre en cadencia
+diaria / semanal / mensual, adelantándose a los earnings.
 
-El oráculo corre los agentes en **cadencia diaria / semanal / mensual** y se
-**adelanta a los earnings**: detecta cuándo una empresa va a reportar y dispara el
-análisis unos días antes.
+Todo se sirve desde una sola app (FastAPI + una SPA sin dependencias externas).
+
+## Qué hace la plataforma
+
+- 🔎 **Buscador universal**: escribís "Bitcoin", "oro", "EUR/USD", "S&P 500" o un ticker
+  y encontrás el activo, sea cual sea su clase.
+- 🧭 **Multi-activo**: acciones, ETFs, bonos (yields), **crypto**, **Forex**,
+  **commodities/futuros** e índices — todo con cotización y gráfico en vivo.
+- ⭐ **Watchlist**: agregá/quitá activos y monitoreá precios y variación desde un solo lugar.
+- 📊 **Gráficos**: precio histórico en Canvas puro, con rangos 1d → max.
+- 🤖 **Agente IA del oráculo**: un analista conversacional, **didáctico**, que busca
+  símbolos, cotiza, trae historiales, calcula Risk Scores y maneja tu watchlist en vivo.
+  Explica cada término técnico y es honesto sobre lo que no se puede saber.
+- 🧮 **Risk Score** de acciones (framework de 3 pilares, abajo).
 
 ## El framework de Risk Score
 
@@ -21,98 +32,83 @@ Tres pilares, escala **0-100, mayor puntaje = menor riesgo**:
 | **Crecimiento** | 30% | CAGR de ingresos y de EPS |
 
 **Bandas:** 0-30 Alto · 30-55 Elevado · 55-75 Moderado · 75-90 Bajo-Mod · 90-100 Bajo Riesgo.
+**Badges:** 🟢 Ancla (alta convicción) · 🟡 Flex (útil pero volátil) · 🔴 Alerta (mirá con lupa).
 
-**Badges por métrica:**
-- 🟢 **Ancla** — fundamental, alta convicción.
-- 🟡 **Flex** — útil pero volátil.
-- 🔴 **Alerta** — la métrica que el management preferiría que ignoraras.
-
-El **score se calcula de forma determinística** desde los datos primarios; el agente
-Claude (`claude-opus-4-7`) agrega la **narrativa**, ajusta los badges según el negocio,
-enumera **trade-offs** y es **honesto sobre lo que no se puede saber** con información pública.
+El score se calcula de forma **determinística** desde los datos primarios; el agente Claude
+(`claude-opus-4-7`) agrega narrativa, ajusta badges, expone trade-offs y los límites del análisis.
 
 ## Cómo se usa
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # poné tu ANTHROPIC_API_KEY y SEC_USER_AGENT
+cp .env.example .env   # poné ANTHROPIC_API_KEY (para el agente IA) y SEC_USER_AGENT
+python main.py         # levanta la plataforma en http://localhost:8000
+```
 
-# Análisis de un ticker (genera el dashboard HTML)
-python turpial.py AAPL                 # con narrativa de Claude
-python turpial.py AAPL --no-narrative  # solo score determinístico (sin API key)
+Abrí `http://localhost:8000` y tenés la plataforma completa. El **agente IA** necesita
+`ANTHROPIC_API_KEY`; el resto (búsqueda, cotizaciones, gráficos, watchlist, Risk Score)
+funciona sin clave de Claude.
 
-# Cadencias del oráculo (leen data/watchlist.json)
-python turpial.py --cadence diario
+También hay CLI para análisis y cadencias:
+
+```bash
+python turpial.py AAPL                 # dashboard de Risk Score (HTML autocontenido)
+python turpial.py --cadence diario     # corre una cadencia de la watchlist del oráculo
 python turpial.py --pre-earnings       # analiza lo que reporta pronto
 ```
 
-El dashboard se escribe en `data/reports/<TICKER>_<fecha>.html`. Abrilo en el navegador
-(o en el celular) — es un único archivo sin dependencias.
-
-## El servicio web (oráculo)
-
-```bash
-python main.py        # uvicorn en :8000
-```
+## API
 
 | Endpoint | Qué hace |
 |---|---|
-| `GET /` | Índice de reportes generados |
-| `GET /analyze/{ticker}` | Genera y devuelve el dashboard HTML en vivo |
-| `GET /api/score/{ticker}` | Score + pilares en JSON |
+| `GET /` | La plataforma (SPA) |
+| `GET /api/search?q=` | Búsqueda universal multi-activo |
+| `GET /api/quote/{symbol}` | Cotización en vivo (cualquier clase de activo) |
+| `GET /api/history/{symbol}?range=` | Serie histórica para graficar |
+| `GET/POST/DELETE /api/watchlist` | Lista de seguimiento del inversor |
+| `POST /api/chat` | El agente IA (body: `{"messages":[...]}`) |
+| `GET /api/score/{ticker}` | Risk Score en JSON |
 | `GET /api/earnings/{ticker}` | Próxima fecha de earnings (estimada) |
-| `GET /report/{ticker}` | Último dashboard guardado |
-| `POST /cron/{cadencia}` | Dispara una cadencia (`diario`/`semanal`/`mensual`/`pre-earnings`) |
-
-El endpoint `/cron` se protege con el header `X-Cron-Token` (variable `CRON_TOKEN`).
-La cadencia la dispara un **cron externo** (Railway Cron, GitHub Actions o systemd-timer),
-así el servicio web queda liviano.
+| `GET /analyze/{ticker}` | Dashboard de Risk Score (HTML autocontenido) |
+| `POST /cron/{cadencia}` | Dispara una cadencia del oráculo |
 
 ## Fuentes de datos — honestidad sobre lo que existe
 
-El brief pedía conectarse a varias plataformas. La realidad de las APIs:
-
 | Fuente | API pública | Estado en Turpial |
 |---|---|---|
+| **Yahoo Finance** | ✅ gratis | **Real** — precio, búsqueda e historial de TODA clase de activo |
 | **SEC EDGAR** | ✅ gratis | **Real** — filings, fundamentales XBRL e insiders (Form 4) |
-| **Yahoo / Stooq** | ✅ gratis | **Real** — precio actual de mercado |
-| TIKR | ❌ | Adapter con hook `TIKR_API_KEY` (sin key → `no_data`) |
-| Koyfin | ❌ | Adapter con hook `KOYFIN_API_KEY` |
-| JustETF | ❌ (ToS) | Adapter — sin scraping; aporte manual |
-| Microcap Club | ❌ (cerrado) | Comunidad paga — aporte manual |
-| Value Invest Club | ❌ (cerrado) | Comunidad cerrada — aporte manual |
-| Dataroma | ❌ oficial | 13F públicos pero frágil; para insiders usamos Form 4 (primario) |
-| Wisdom | ❌ | Adapter — integración manual |
+| TIKR / Koyfin | ❌ | Adapter con hook de API key (sin key → `no_data`) |
+| JustETF / Microcap Club / Value Invest Club / Dataroma / Wisdom | ❌ | Sin API pública (pagas/cerradas); integración manual |
 
-> **Importante:** TIKR, Koyfin, JustETF, Microcap Club, Value Invest Club, Dataroma y
-> Wisdom **no exponen APIs públicas** (son plataformas pagas o comunidades cerradas).
-> Turpial **no inventa** esos datos: deja conectores con interfaz lista y hooks de API
-> key, y construye el motor real sobre fuentes **primarias y verificables** (SEC + precio).
-> Esto respeta la propia directriz del brief: *"Sé honesto sobre lo que no se puede saber
-> con información pública."*
+> TIKR, Koyfin, JustETF, Microcap Club, Value Invest Club, Dataroma y Wisdom **no exponen
+> APIs públicas**. Turpial **no inventa** esos datos: deja conectores con interfaz lista y
+> construye el motor real sobre fuentes **primarias y verificables**. Para "insiders" usa
+> **Form 4 de la SEC**, que es la fuente primaria y legal.
+>
+> Nota: el endpoint de **opciones** de Yahoo hoy requiere un *crumb* de sesión y suele
+> devolver 401, así que esa clase queda como mejora futura (cadenas de opciones).
 
 ## Arquitectura
 
 ```
-turpial.py / app.py            ← CLI y servicio web (el oráculo)
+web/index.html                 ← la plataforma (SPA, Canvas puro, sin dependencias)
+app.py                         ← FastAPI: sirve la SPA + APIs (búsqueda, cotización, chat, score)
    ↓
-oracle/        scheduler · earnings · store     (cadencia, calendario, persistencia)
-   ↓
-agents/        risk_score · scoring · prompts   (agente de Wall Street + framework)
-   ↓
-connectors/    sec_edgar · prices · insiders · premium
-   ↓
-dashboard/     render            (HTML autocontenido, Canvas puro, mobile-first)
+agents/   oracle_chat (agente IA conversacional) · risk_score · scoring · prompts
+oracle/   scheduler · earnings · store · watchlist
+connectors/  market (Yahoo multi-activo) · sec_edgar · prices · insiders · premium
+dashboard/  render            ← dashboard de Risk Score (HTML autocontenido)
 ```
 
 ## Deploy en Railway
 
 1. Deployá esta carpeta como un servicio. `railway.json` ya define el `startCommand`.
-2. Variables de entorno: `ANTHROPIC_API_KEY`, `SEC_USER_AGENT`, `CRON_TOKEN`.
-3. Agregá un **Railway Cron** que haga `POST /cron/diario`, `/cron/semanal`,
-   `/cron/mensual` y `/cron/pre-earnings` con el header `X-Cron-Token`.
+2. Variables: `ANTHROPIC_API_KEY`, `SEC_USER_AGENT`, `CRON_TOKEN`.
+3. Agregá un Railway Cron que haga `POST /cron/{diario|semanal|mensual|pre-earnings}`
+   con el header `X-Cron-Token`.
 
 ## Aviso
 
-Turpial Finanzas es una herramienta de investigación. **No es recomendación de
-inversión.** Verificá siempre los números contra los documentos originales de la SEC.
+Turpial Finanzas es una herramienta de investigación. **No es asesoramiento de inversión.**
+Verificá siempre los números contra los documentos originales.
