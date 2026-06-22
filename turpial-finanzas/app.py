@@ -48,6 +48,11 @@ def api_history(symbol: str, range: str = Query("1y")) -> JSONResponse:
     return JSONResponse(content=market.history(symbol, range))
 
 
+@app.get("/api/options/{symbol}")
+def api_options(symbol: str, expiration: int | None = Query(None)) -> JSONResponse:
+    return JSONResponse(content=market.options(symbol, expiration))
+
+
 # ------------------------------------------------------------------- Watchlist
 @app.get("/api/watchlist")
 def api_watchlist() -> JSONResponse:

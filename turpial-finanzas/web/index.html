@@ -96,6 +96,17 @@
   .sg{font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;
     padding:4px 10px;cursor:pointer}
   .hidden{display:none!important}
+  /* Options table */
+  .opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:620px){.opt-grid{grid-template-columns:1fr}}
+  table.opt{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+  table.opt caption{font-weight:700;text-align:left;padding:4px 2px;font-size:12.5px}
+  table.opt.calls caption{color:var(--accent)} table.opt.puts caption{color:var(--bad)}
+  table.opt th{color:var(--muted);font-weight:600;text-align:right;padding:5px 6px;border-bottom:1px solid var(--line)}
+  table.opt td{text-align:right;padding:5px 6px;border-bottom:1px solid var(--panel2)}
+  table.opt tr.itm td{background:var(--panel2)}
+  table.opt td.strike{font-weight:700;text-align:left}
+  .refnote{font-size:10.5px;color:var(--muted);margin-top:6px}
   footer{margin-top:18px;font-size:11px;color:var(--muted);text-align:center;line-height:1.7}
 </style>
 </head>
@@ -151,9 +162,21 @@
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
           <button class="act" id="d-watch">☆ Seguir</button>
           <button class="ghost hidden" id="d-risk">📊 Generar Risk Score</button>
+          <button class="ghost hidden" id="d-opts">⛓️ Opciones</button>
           <button class="ghost" id="d-ask">🤖 Preguntar al agente</button>
         </div>
         <div class="didactic" id="d-note" style="margin-top:12px"></div>
+
+        <!-- Panel de opciones -->
+        <div id="opts-panel" class="hidden" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <h2 style="margin:0">Cadena de opciones</h2>
+            <span class="sub" id="opts-spot"></span>
+          </div>
+          <div class="didactic" style="margin:10px 0">Una <b>opción</b> da el derecho (no la obligación) de comprar (<b>call</b>) o vender (<b>put</b>) a un precio fijo (<b>strike</b>) hasta un <b>vencimiento</b>. La <b>IV</b> (volatilidad implícita) es cuánta variación espera el mercado.</div>
+          <div class="ranges" id="opts-exps" style="overflow-x:auto"></div>
+          <div id="opts-tables"><div class="empty">Cargando opciones…</div></div>
+        </div>
       </section>
     </div>
 
@@ -225,14 +248,14 @@ async function loadCategory(name){
 
 /* ---------------- Fila de cotización ---------------- */
 function quoteRow(q, opts={}){
-  const row = document.createElement("div"); row.className = "qrow";
+  const row = document.createElement("div"); row.className = "qrow"; row.dataset.sym = q.symbol;
   const dir = q.change_pct==null ? "flat" : (q.change_pct>0?"up":(q.change_pct<0?"down":"flat"));
   const sign = q.change_pct>0?"+":"";
   row.innerHTML =
     `<div class="left"><div class="s">${q.symbol} <span class="pill">${q.asset_class}</span></div>
        <div class="n">${q.name||""}</div></div>
      <div class="right"><div class="price">${fmtNum(q.price)} ${q.currency||""}</div>
-       <div class="${dir}">${q.change_pct==null?"":sign+q.change_pct+"%"}</div></div>`;
+       <div class="chg ${dir}">${q.change_pct==null?"":sign+q.change_pct+"%"}</div></div>`;
   row.onclick = () => showDetail(q.symbol);
   if(opts.removable){
     const rm = document.createElement("button"); rm.className="ghost tiny"; rm.textContent="✕";
@@ -284,7 +307,10 @@ async function showDetail(symbol){
   const dir = q.change_pct==null?"flat":(q.change_pct>0?"up":(q.change_pct<0?"down":"flat"));
   $("#d-change").innerHTML = `<span class="${dir}">${q.change_pct==null?"":(q.change_pct>0?"+":"")+q.change_pct+"%"}</span> · al ${q.as_of||"último cierre"}`;
   detailIsStock = q.asset_class==="Acción";
+  const hasOptions = ["Acción","ETF","Índice"].includes(q.asset_class);
   $("#d-risk").classList.toggle("hidden", !detailIsStock);
+  $("#d-opts").classList.toggle("hidden", !hasOptions);
+  $("#opts-panel").classList.add("hidden");  // se oculta hasta que lo pidan
   $("#d-note").textContent = detailIsStock
     ? "Es una acción con filings en la SEC: podés generar el Risk Score de 3 pilares (valuación, salud financiera, crecimiento)."
     : "Para "+q.asset_class.toLowerCase()+" no hay fundamentales contables: el análisis se basa en precio, tendencia y contexto. Preguntale al agente IA por más.";
@@ -293,8 +319,58 @@ async function showDetail(symbol){
       body:JSON.stringify({symbol:q.symbol})}).then(()=>{ $("#d-watch").textContent="★ Siguiendo"; loadWatchlist(); });
   $("#d-watch").textContent = "☆ Seguir";
   $("#d-risk").onclick = () => window.open("/analyze/"+encodeURIComponent(q.symbol.replace(/\..*/,"")), "_blank");
+  $("#d-opts").onclick = () => { const p=$("#opts-panel"); p.classList.toggle("hidden");
+      if(!p.classList.contains("hidden")) loadOptions(q.symbol); };
   $("#d-ask").onclick = () => { switchTab("agente"); $("#chatInput").value =
       "Analizá "+q.symbol+" ("+q.name+"). ¿Qué debería mirar y cuáles son los riesgos?"; $("#chatInput").focus(); };
+}
+
+/* ---------------- Opciones ---------------- */
+let optSymbol=null, optSpot=null;
+async function loadOptions(symbol, expTs=null){
+  optSymbol=symbol;
+  $("#opts-tables").innerHTML='<div class="empty">Cargando opciones…</div>';
+  let o=null;
+  try{ o = await api("/api/options/"+encodeURIComponent(symbol)+(expTs?("?expiration="+expTs):"")); }catch(e){}
+  if(!o || o.status!=="ok"){
+    $("#opts-tables").innerHTML='<div class="empty">'+((o&&o.reason)||"Este activo no tiene cadena de opciones disponible.")+'</div>';
+    $("#opts-exps").innerHTML=""; $("#opts-spot").textContent=""; return;
+  }
+  optSpot=o.underlying_price;
+  $("#opts-spot").textContent = "Subyacente: "+fmtNum(o.underlying_price)+" "+(o.currency||"");
+  const exps=$("#opts-exps"); exps.innerHTML="";
+  o.expirations.slice(0,12).forEach(e=>{
+    const el=document.createElement("div");
+    const active = o.selected_expiration ? (e.ts===o.selected_expiration) : false;
+    el.className="range"+(active?" active":""); el.textContent=e.date;
+    el.onclick=()=>loadOptions(symbol, e.ts); exps.appendChild(el);
+  });
+  $("#opts-tables").innerHTML="";
+  const grid=document.createElement("div"); grid.className="opt-grid";
+  grid.appendChild(optTable("calls", o.calls)); grid.appendChild(optTable("puts", o.puts));
+  $("#opts-tables").appendChild(grid);
+  const n=document.createElement("div"); n.className="refnote";
+  n.textContent="Mostrando strikes cerca del precio actual. IV = volatilidad implícita · OI = interés abierto (contratos vivos).";
+  $("#opts-tables").appendChild(n);
+}
+function optTable(kind, rows){
+  // ordenar y quedarnos con ~10 strikes alrededor del subyacente
+  rows=(rows||[]).slice().sort((a,b)=>(a.strike||0)-(b.strike||0));
+  if(optSpot){
+    let idx=rows.findIndex(r=>r.strike>=optSpot); if(idx<0) idx=rows.length-1;
+    rows=rows.slice(Math.max(0,idx-5), idx+6);
+  }else rows=rows.slice(0,11);
+  const t=document.createElement("table"); t.className="opt "+kind;
+  t.innerHTML='<caption>'+(kind==="calls"?"Calls (comprar)":"Puts (vender)")+'</caption>'+
+    '<tr><th style="text-align:left">Strike</th><th>Últ.</th><th>IV%</th><th>OI</th></tr>';
+  rows.forEach(r=>{
+    const tr=document.createElement("tr"); if(r.itm) tr.className="itm";
+    tr.innerHTML='<td class="strike">'+fmtNum(r.strike)+'</td><td>'+(r.last!=null?fmtNum(r.last):"—")+
+      '</td><td>'+(r.iv!=null?r.iv:"—")+'</td><td>'+(r.open_interest!=null?r.open_interest:"—")+'</td>';
+    t.appendChild(tr);
+  });
+  if(!rows.length){ const tr=document.createElement("tr"); tr.innerHTML='<td colspan="4" style="text-align:center;color:var(--muted)">sin datos</td>'; t.appendChild(tr); }
+  return t;
 }
 function buildRanges(){
   const host = $("#ranges"); host.innerHTML="";
@@ -393,6 +469,25 @@ function switchTab(name){
 }
 document.querySelectorAll(".tab").forEach(t => t.onclick = () => switchTab(t.dataset.tab));
 window.addEventListener("resize", ()=>{ if(detailSymbol && !$("#view-detalle").classList.contains("hidden")) loadChart(); });
+
+/* ---------------- Auto-refresh de cotizaciones (silencioso, en sitio) ---------------- */
+async function refreshVisibleQuotes(){
+  if(document.hidden) return;  // no gastar si la pestaña no está visible
+  const container = !$("#view-explorar").classList.contains("hidden") ? $("#cat-list")
+                  : (!$("#view-watchlist").classList.contains("hidden") ? $("#wl-list") : null);
+  if(!container) return;
+  const rows = [...container.querySelectorAll(".qrow[data-sym]")];
+  if(!rows.length) return;
+  const quotes = await Promise.all(rows.map(r => api("/api/quote/"+encodeURIComponent(r.dataset.sym)).catch(()=>null)));
+  quotes.forEach((q,i)=>{
+    if(!q) return;
+    const r=rows[i], p=r.querySelector(".price"), c=r.querySelector(".chg");
+    if(p) p.textContent = fmtNum(q.price)+" "+(q.currency||"");
+    if(c){ const dir=q.change_pct==null?"flat":(q.change_pct>0?"up":(q.change_pct<0?"down":"flat"));
+      c.className="chg "+dir; c.textContent=q.change_pct==null?"":((q.change_pct>0?"+":"")+q.change_pct+"%"); }
+  });
+}
+setInterval(refreshVisibleQuotes, 20000);  // cada 20 s
 
 /* ---------------- Init ---------------- */
 buildCats(); loadCategory(currentCat); buildSuggest();

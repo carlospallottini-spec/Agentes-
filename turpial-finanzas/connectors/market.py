@@ -14,9 +14,15 @@ from datetime import datetime, timezone
 
 import httpx
 
-_UA = {"User-Agent": "Mozilla/5.0 (Turpial Finanzas)"}
+_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Turpial Finanzas"}
 _SEARCH = "https://query1.finance.yahoo.com/v1/finance/search"
 _CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}"
+_OPTIONS = "https://query1.finance.yahoo.com/v7/finance/options/{sym}"
+_CRUMB = "https://query1.finance.yahoo.com/v1/test/getcrumb"
+
+# Sesión con cookie + crumb, necesaria para el endpoint de opciones de Yahoo.
+_session: httpx.Client | None = None
+_crumb: str | None = None
 
 # quoteType de Yahoo -> etiqueta didáctica.
 _CLASS = {
@@ -115,3 +121,73 @@ def history(symbol: str, rng: str = "1y") -> dict:
         return {"symbol": symbol.upper(), "range": rng, "points": []}
     points = [{"t": t, "c": round(c, 4)} for t, c in zip(ts, closes) if c is not None]
     return {"symbol": symbol.upper(), "range": rng, "points": points}
+
+
+def _ensure_crumb() -> tuple[httpx.Client, str] | tuple[None, None]:
+    """Inicializa (perezosamente) una sesión con cookie + crumb de Yahoo para opciones."""
+    global _session, _crumb
+    if _session is not None and _crumb:
+        return _session, _crumb
+    try:
+        s = httpx.Client(headers=_UA, timeout=20.0, follow_redirects=True)
+        s.get("https://fc.yahoo.com")  # siembra la cookie (devuelve 404, no importa)
+        crumb = s.get(_CRUMB).text.strip()
+        if not crumb or "<" in crumb:  # a veces devuelve HTML de error
+            return None, None
+        _session, _crumb = s, crumb
+        return _session, _crumb
+    except httpx.HTTPError:
+        return None, None
+
+
+def _opt_row(o: dict) -> dict:
+    return {
+        "strike": o.get("strike"),
+        "last": o.get("lastPrice"),
+        "bid": o.get("bid"),
+        "ask": o.get("ask"),
+        "iv": round(o["impliedVolatility"] * 100, 1) if o.get("impliedVolatility") else None,
+        "volume": o.get("volume"),
+        "open_interest": o.get("openInterest"),
+        "itm": o.get("inTheMoney"),
+        "expiration": o.get("expiration"),
+    }
+
+
+def options(symbol: str, expiration: int | None = None) -> dict:
+    """Cadena de opciones de un activo (requiere crumb de Yahoo).
+
+    Devuelve vencimientos disponibles, el precio subyacente y calls/puts del vencimiento
+    elegido (por defecto el más cercano).
+    """
+    s, crumb = _ensure_crumb()
+    if not s:
+        return {"symbol": symbol.upper(), "status": "no_data",
+                "reason": "No se pudo obtener el crumb de Yahoo para opciones."}
+    params = {"crumb": crumb}
+    if expiration:
+        params["date"] = expiration
+    try:
+        data = s.get(_OPTIONS.format(sym=symbol), params=params).json()
+        res = data["optionChain"]["result"][0]
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+        return {"symbol": symbol.upper(), "status": "no_data",
+                "reason": "Sin cadena de opciones para ese símbolo."}
+
+    exp_ts = res.get("expirationDates", [])
+    quote_meta = (res.get("quote") or {})
+    chain = (res.get("options") or [{}])[0]
+    if not exp_ts and not chain.get("calls") and not chain.get("puts"):
+        return {"symbol": symbol.upper(), "status": "no_data",
+                "reason": "Este activo no tiene cadena de opciones (típico de crypto, Forex o commodities)."}
+    return {
+        "symbol": symbol.upper(),
+        "status": "ok",
+        "underlying_price": quote_meta.get("regularMarketPrice"),
+        "currency": quote_meta.get("currency", "USD"),
+        "expirations": [{"ts": t, "date": datetime.fromtimestamp(t, tz=timezone.utc)
+                         .date().isoformat()} for t in exp_ts],
+        "selected_expiration": chain.get("expirationDate"),
+        "calls": [_opt_row(o) for o in chain.get("calls", [])],
+        "puts": [_opt_row(o) for o in chain.get("puts", [])],
+    }

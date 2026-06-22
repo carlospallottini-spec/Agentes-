@@ -63,6 +63,16 @@ TOOLS = [
         },
     },
     {
+        "name": "cadena_opciones",
+        "description": "Trae la cadena de opciones (calls y puts) de una acción o ETF: "
+                       "vencimientos, strikes, precio, volatilidad implícita e interés abierto.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"symbol": {"type": "string", "description": "Símbolo subyacente, ej. AAPL."}},
+            "required": ["symbol"],
+        },
+    },
+    {
         "name": "risk_score_accion",
         "description": "Calcula el Risk Score (3 pilares: valuación, salud financiera, crecimiento) "
                        "de una ACCIÓN de empresa con filings en la SEC (EE.UU.).",
@@ -119,6 +129,19 @@ def _execute(name: str, args: dict) -> str:
         else:
             resumen = {"symbol": h["symbol"], "rango": h["range"], "n": 0}
         return _dump(resumen)
+    if name == "cadena_opciones":
+        o = market.options(args["symbol"])
+        if o.get("status") != "ok":
+            return _dump(o)
+        # Resumimos: vencimiento más cercano + strikes cerca del dinero (at-the-money).
+        spot = o.get("underlying_price")
+        def near(rows):
+            if spot:
+                rows = sorted(rows, key=lambda r: abs((r.get("strike") or 0) - spot))[:6]
+            return [{k: r[k] for k in ("strike", "last", "iv", "open_interest", "itm")} for r in rows]
+        return _dump({"symbol": o["symbol"], "subyacente": spot,
+                      "vencimientos": [e["date"] for e in o["expirations"][:8]],
+                      "calls_atm": near(o["calls"]), "puts_atm": near(o["puts"])})
     if name == "risk_score_accion":
         from agents.risk_score import gather_data
         d = gather_data(args["ticker"])
