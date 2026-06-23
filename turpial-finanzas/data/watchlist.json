@@ -1,0 +1,6 @@
+{
+  "_comentario": "Tickers que el oráculo analiza en cada cadencia. Editá libremente.",
+  "diario": ["AAPL", "MSFT", "NVDA"],
+  "semanal": ["BRK-B", "GOOGL", "AMZN", "META"],
+  "mensual": ["KO", "JNJ", "PG", "XOM", "UNH"]
+}

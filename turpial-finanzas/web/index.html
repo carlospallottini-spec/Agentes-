@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turpial Finanzas — plataforma de inversión todo-en-uno</title>
+<style>
+  :root{
+    --bg:#0a0e18; --panel:#111a2b; --panel2:#0e1626; --line:#1e2a45;
+    --txt:#e8edf7; --muted:#8a98b5; --accent:#39d98a; --accent2:#ffd166;
+    --bad:#ff5d73; --blue:#5b9dff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5}
+  a{color:var(--accent2);text-decoration:none}
+  .app{max-width:1180px;margin:0 auto;padding:14px 14px 90px}
+  /* Header */
+  header{display:flex;align-items:center;gap:12px;padding:6px 2px 12px;flex-wrap:wrap}
+  .logo{font-weight:800;font-size:20px;letter-spacing:.02em}
+  .logo b{color:var(--accent)}
+  .tag{font-size:11px;color:var(--muted);border:1px solid var(--line);padding:3px 8px;border-radius:999px}
+  /* Search */
+  .searchwrap{position:relative;flex:1;min-width:240px}
+  #search{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);
+    background:var(--panel);color:var(--txt);font-size:15px;outline:none}
+  #search:focus{border-color:var(--accent)}
+  .results{position:absolute;top:52px;left:0;right:0;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;z-index:30;overflow:hidden;display:none;
+    box-shadow:0 20px 50px #0009;max-height:60vh;overflow-y:auto}
+  .results.open{display:block}
+  .res{display:flex;justify-content:space-between;gap:10px;padding:11px 14px;cursor:pointer;
+    border-top:1px solid var(--line)}
+  .res:first-child{border-top:none}
+  .res:hover{background:var(--panel2)}
+  .res .sym{font-weight:700}
+  .res .nm{color:var(--muted);font-size:12.5px}
+  .chip-type{font-size:10.5px;color:var(--blue);border:1px solid var(--line);
+    padding:1px 7px;border-radius:999px;white-space:nowrap;align-self:center}
+  /* Tabs */
+  nav.tabs{display:flex;gap:6px;margin:6px 0 14px;flex-wrap:wrap}
+  .tab{padding:9px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);
+    color:var(--muted);cursor:pointer;font-size:13.5px;font-weight:600}
+  .tab.active{color:var(--bg);background:var(--accent);border-color:var(--accent)}
+  /* Layout */
+  .cols{display:grid;grid-template-columns:1fr;gap:14px}
+  @media(min-width:900px){.cols{grid-template-columns:1.15fr .85fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px}
+  h2{font-size:15px;margin:0 0 12px}
+  .sub{color:var(--muted);font-size:12.5px}
+  /* Category chips */
+  .cats{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+  .cat{padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--txt);cursor:pointer;font-size:12.5px}
+  .cat.active{background:var(--blue);border-color:var(--blue);color:#04122b;font-weight:700}
+  .didactic{background:var(--panel2);border:1px dashed var(--line);border-radius:12px;
+    padding:10px 12px;font-size:12.5px;color:var(--muted);margin-bottom:12px}
+  /* Quote rows */
+  .qrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 6px;
+    border-top:1px solid var(--line);cursor:pointer}
+  .qrow:first-of-type{border-top:none}
+  .qrow:hover{background:var(--panel2);border-radius:10px}
+  .qrow .left .s{font-weight:700} .qrow .left .n{color:var(--muted);font-size:12px}
+  .qrow .right{text-align:right;font-variant-numeric:tabular-nums}
+  .qrow .price{font-weight:700}
+  .up{color:var(--accent)} .down{color:var(--bad)} .flat{color:var(--muted)}
+  .mini{width:64px;height:26px}
+  .pill{font-size:10px;color:var(--blue);border:1px solid var(--line);padding:1px 7px;border-radius:999px}
+  button.act{background:var(--accent);color:#04122b;border:none;border-radius:10px;
+    padding:9px 13px;font-weight:700;cursor:pointer;font-size:13px}
+  button.ghost{background:transparent;color:var(--txt);border:1px solid var(--line);
+    border-radius:10px;padding:8px 12px;cursor:pointer;font-size:13px}
+  button.tiny{font-size:11px;padding:4px 9px;border-radius:8px}
+  /* Detail */
+  .detail-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+  .big-price{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums}
+  .ranges{display:flex;gap:6px;margin:12px 0}
+  .range{padding:5px 11px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--muted);cursor:pointer;font-size:12px}
+  .range.active{background:var(--accent2);color:#1a1400;border-color:var(--accent2);font-weight:700}
+  canvas.chart{width:100%;height:auto;display:block}
+  .empty{color:var(--muted);text-align:center;padding:26px 10px;font-size:13.5px}
+  /* Chat */
+  .chat{display:flex;flex-direction:column;height:540px}
+  .msgs{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px}
+  .msg{max-width:88%;padding:10px 13px;border-radius:14px;font-size:13.5px;white-space:pre-wrap;line-height:1.55}
+  .msg.user{align-self:flex-end;background:var(--accent);color:#04122b;border-bottom-right-radius:4px}
+  .msg.bot{align-self:flex-start;background:var(--panel2);border:1px solid var(--line);border-bottom-left-radius:4px}
+  .msg.tools{align-self:flex-start;font-size:11px;color:var(--muted);padding:2px 8px}
+  .chatbar{display:flex;gap:8px;margin-top:10px}
+  #chatInput{flex:1;padding:11px 13px;border-radius:12px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--txt);font-size:14px;outline:none;resize:none}
+  .suggest{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .sg{font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;
+    padding:4px 10px;cursor:pointer}
+  .hidden{display:none!important}
+  /* Options table */
+  .opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:620px){.opt-grid{grid-template-columns:1fr}}
+  table.opt{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+  table.opt caption{font-weight:700;text-align:left;padding:4px 2px;font-size:12.5px}
+  table.opt.calls caption{color:var(--accent)} table.opt.puts caption{color:var(--bad)}
+  table.opt th{color:var(--muted);font-weight:600;text-align:right;padding:5px 6px;border-bottom:1px solid var(--line)}
+  table.opt td{text-align:right;padding:5px 6px;border-bottom:1px solid var(--panel2)}
+  table.opt tr.itm td{background:var(--panel2)}
+  table.opt td.strike{font-weight:700;text-align:left}
+  .refnote{font-size:10.5px;color:var(--muted);margin-top:6px}
+  footer{margin-top:18px;font-size:11px;color:var(--muted);text-align:center;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">🦜 Turpial <b>Finanzas</b></div>
+    <span class="tag">Oráculo multi-activo</span>
+    <div class="searchwrap">
+      <input id="search" placeholder="Buscá lo que sea: AAPL, Bitcoin, oro, EUR/USD, S&P 500…" autocomplete="off">
+      <div class="results" id="results"></div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <div class="tab active" data-tab="explorar">🔎 Explorar</div>
+    <div class="tab" data-tab="watchlist">⭐ Watchlist</div>
+    <div class="tab" data-tab="agente">🤖 Agente IA</div>
+  </nav>
+
+  <div class="cols">
+    <!-- IZQUIERDA: explorar / watchlist / detalle -->
+    <div>
+      <!-- EXPLORAR -->
+      <section id="view-explorar" class="card">
+        <h2>Explorar el mercado</h2>
+        <div class="cats" id="cats"></div>
+        <div class="didactic" id="cat-help"></div>
+        <div id="cat-list"><div class="empty">Cargando…</div></div>
+      </section>
+
+      <!-- WATCHLIST -->
+      <section id="view-watchlist" class="card hidden">
+        <h2>Tu lista de seguimiento</h2>
+        <div class="sub" style="margin-bottom:10px">Agregá activos desde el buscador o el detalle. Las cotizaciones se actualizan al abrir.</div>
+        <div id="wl-list"><div class="empty">Tu watchlist está vacía. Buscá un activo y tocá ☆.</div></div>
+      </section>
+
+      <!-- DETALLE -->
+      <section id="view-detalle" class="card hidden">
+        <div class="detail-head">
+          <div>
+            <div id="d-name" style="font-weight:700"></div>
+            <div class="sub"><span id="d-sym"></span> · <span id="d-class" class="pill"></span> · <span id="d-exch"></span></div>
+          </div>
+          <div style="text-align:right">
+            <div class="big-price" id="d-price"></div>
+            <div id="d-change" class="sub"></div>
+          </div>
+        </div>
+        <div class="ranges" id="ranges"></div>
+        <canvas class="chart" id="d-chart" width="640" height="260"></canvas>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="act" id="d-watch">☆ Seguir</button>
+          <button class="ghost hidden" id="d-risk">📊 Generar Risk Score</button>
+          <button class="ghost hidden" id="d-opts">⛓️ Opciones</button>
+          <button class="ghost" id="d-ask">🤖 Preguntar al agente</button>
+        </div>
+        <div class="didactic" id="d-note" style="margin-top:12px"></div>
+
+        <!-- Panel de opciones -->
+        <div id="opts-panel" class="hidden" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <h2 style="margin:0">Cadena de opciones</h2>
+            <span class="sub" id="opts-spot"></span>
+          </div>
+          <div class="didactic" style="margin:10px 0">Una <b>opción</b> da el derecho (no la obligación) de comprar (<b>call</b>) o vender (<b>put</b>) a un precio fijo (<b>strike</b>) hasta un <b>vencimiento</b>. La <b>IV</b> (volatilidad implícita) es cuánta variación espera el mercado.</div>
+          <div class="ranges" id="opts-exps" style="overflow-x:auto"></div>
+          <div id="opts-tables"><div class="empty">Cargando opciones…</div></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- DERECHA: agente IA siempre visible en desktop -->
+    <div>
+      <section id="view-agente" class="card">
+        <h2>🤖 Agente IA del oráculo <span class="sub">— preguntale cualquier cosa</span></h2>
+        <div class="suggest" id="suggest"></div>
+        <div class="chat">
+          <div class="msgs" id="msgs"></div>
+          <div class="chatbar">
+            <textarea id="chatInput" rows="1" placeholder="Ej: ¿Cómo viene el oro este año? ¿Riesgo de NVDA?"></textarea>
+            <button class="act" id="send">Enviar</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    Datos de mercado vía Yahoo Finance · fundamentales e insiders vía SEC EDGAR.
+    Turpial Finanzas es una herramienta de investigación, <b>no</b> asesoramiento de inversión.
+  </footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = (p, opt) => fetch(p, opt).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)));
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+/* ---------------- Categorías didácticas (descubrimiento por clase de activo) ---------------- */
+const CATEGORIES = {
+  "Acciones": {help:"Una acción es una fracción de propiedad de una empresa. Acá, las grandes de EE.UU.",
+    syms:["AAPL","MSFT","NVDA","AMZN","GOOGL","TSLA","META","BRK-B"]},
+  "ETFs": {help:"Un ETF (fondo cotizado) agrupa muchos activos en un solo papel; diversificás de una.",
+    syms:["SPY","QQQ","VTI","VOO","SCHD","ARKK"]},
+  "Crypto": {help:"Criptomonedas: activos digitales muy volátiles. Cotizan 24/7.",
+    syms:["BTC-USD","ETH-USD","SOL-USD","BNB-USD","XRP-USD","ADA-USD"]},
+  "Forex": {help:"Forex = mercado de divisas. El par muestra cuánto de la 2ª moneda vale 1 de la 1ª.",
+    syms:["EURUSD=X","GBPUSD=X","USDJPY=X","USDARS=X","AUDUSD=X","USDBRL=X"]},
+  "Commodities": {help:"Materias primas: oro, petróleo, metales, agro. Cotizan vía futuros (=F).",
+    syms:["GC=F","SI=F","CL=F","NG=F","HG=F","ZC=F"]},
+  "Bonos": {help:"Rendimiento (yield) de bonos del Tesoro de EE.UU. Sube el yield → baja el precio del bono.",
+    syms:["^IRX","^FVX","^TNX","^TYX"]},
+  "Índices": {help:"Un índice mide un mercado entero (ej. S&P 500 = 500 grandes de EE.UU.).",
+    syms:["^GSPC","^DJI","^IXIC","^RUT","^VIX"]},
+};
+let currentCat = "Acciones";
+
+function buildCats(){
+  const host = $("#cats"); host.innerHTML = "";
+  Object.keys(CATEGORIES).forEach(name => {
+    const el = document.createElement("div");
+    el.className = "cat" + (name===currentCat ? " active":"");
+    el.textContent = name;
+    el.onclick = () => { currentCat = name; buildCats(); loadCategory(name); };
+    host.appendChild(el);
+  });
+}
+async function loadCategory(name){
+  $("#cat-help").textContent = CATEGORIES[name].help;
+  const host = $("#cat-list"); host.innerHTML = '<div class="empty">Cargando cotizaciones…</div>';
+  const quotes = await Promise.all(CATEGORIES[name].syms.map(s =>
+    api("/api/quote/" + encodeURIComponent(s)).catch(()=>null)));
+  host.innerHTML = "";
+  quotes.filter(Boolean).forEach(q => host.appendChild(quoteRow(q)));
+  if(!host.children.length) host.innerHTML = '<div class="empty">No se pudieron cargar cotizaciones ahora.</div>';
+}
+
+/* ---------------- Fila de cotización ---------------- */
+function quoteRow(q, opts={}){
+  const row = document.createElement("div"); row.className = "qrow"; row.dataset.sym = q.symbol;
+  const dir = q.change_pct==null ? "flat" : (q.change_pct>0?"up":(q.change_pct<0?"down":"flat"));
+  const sign = q.change_pct>0?"+":"";
+  row.innerHTML =
+    `<div class="left"><div class="s">${q.symbol} <span class="pill">${q.asset_class}</span></div>
+       <div class="n">${q.name||""}</div></div>
+     <div class="right"><div class="price">${fmtNum(q.price)} ${q.currency||""}</div>
+       <div class="chg ${dir}">${q.change_pct==null?"":sign+q.change_pct+"%"}</div></div>`;
+  row.onclick = () => showDetail(q.symbol);
+  if(opts.removable){
+    const rm = document.createElement("button"); rm.className="ghost tiny"; rm.textContent="✕";
+    rm.style.marginLeft="8px";
+    rm.onclick = (e)=>{ e.stopPropagation(); api("/api/watchlist/"+encodeURIComponent(q.symbol),{method:"DELETE"}).then(loadWatchlist); };
+    row.querySelector(".right").appendChild(rm);
+  }
+  return row;
+}
+function fmtNum(v){
+  if(v==null) return "s/d";
+  const a=Math.abs(v);
+  if(a>=1000) return v.toLocaleString("es",{maximumFractionDigits:2});
+  if(a>=1) return v.toFixed(2);
+  return v.toPrecision(4);
+}
+
+/* ---------------- Buscador universal ---------------- */
+const doSearch = debounce(async (q) => {
+  if(!q.trim()){ $("#results").classList.remove("open"); return; }
+  let res = [];
+  try{ res = await api("/api/search?q=" + encodeURIComponent(q)); }catch(e){}
+  const box = $("#results"); box.innerHTML = "";
+  if(!res.length){ box.innerHTML = '<div class="res"><span class="nm">Sin resultados</span></div>'; }
+  res.forEach(r => {
+    const el = document.createElement("div"); el.className = "res";
+    el.innerHTML = `<div><span class="sym">${r.symbol}</span> <span class="nm">${r.name||""}</span></div>
+                    <span class="chip-type">${r.asset_class}</span>`;
+    el.onclick = () => { $("#search").value=""; box.classList.remove("open"); showDetail(r.symbol); };
+    box.appendChild(el);
+  });
+  box.classList.add("open");
+}, 220);
+$("#search").addEventListener("input", e => doSearch(e.target.value));
+document.addEventListener("click", e => { if(!e.target.closest(".searchwrap")) $("#results").classList.remove("open"); });
+
+/* ---------------- Detalle de activo + gráfico ---------------- */
+let detailSymbol = null, detailRange = "1y", detailIsStock = false;
+async function showDetail(symbol){
+  switchTab("detalle"); detailSymbol = symbol;
+  $("#view-detalle").classList.remove("hidden");
+  $("#d-name").textContent = "Cargando…"; $("#d-price").textContent=""; $("#d-change").textContent="";
+  let q = null;
+  try{ q = await api("/api/quote/"+encodeURIComponent(symbol)); }catch(e){}
+  if(!q){ $("#d-name").textContent = "No se pudo cargar "+symbol; return; }
+  $("#d-name").textContent = q.name; $("#d-sym").textContent = q.symbol;
+  $("#d-class").textContent = q.asset_class; $("#d-exch").textContent = q.exchange||"";
+  $("#d-price").textContent = fmtNum(q.price)+" "+(q.currency||"");
+  const dir = q.change_pct==null?"flat":(q.change_pct>0?"up":(q.change_pct<0?"down":"flat"));
+  $("#d-change").innerHTML = `<span class="${dir}">${q.change_pct==null?"":(q.change_pct>0?"+":"")+q.change_pct+"%"}</span> · al ${q.as_of||"último cierre"}`;
+  detailIsStock = q.asset_class==="Acción";
+  const hasOptions = ["Acción","ETF","Índice"].includes(q.asset_class);
+  $("#d-risk").classList.toggle("hidden", !detailIsStock);
+  $("#d-opts").classList.toggle("hidden", !hasOptions);
+  $("#opts-panel").classList.add("hidden");  // se oculta hasta que lo pidan
+  $("#d-note").textContent = detailIsStock
+    ? "Es una acción con filings en la SEC: podés generar el Risk Score de 3 pilares (valuación, salud financiera, crecimiento)."
+    : "Para "+q.asset_class.toLowerCase()+" no hay fundamentales contables: el análisis se basa en precio, tendencia y contexto. Preguntale al agente IA por más.";
+  buildRanges(); loadChart();
+  $("#d-watch").onclick = () => api("/api/watchlist",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({symbol:q.symbol})}).then(()=>{ $("#d-watch").textContent="★ Siguiendo"; loadWatchlist(); });
+  $("#d-watch").textContent = "☆ Seguir";
+  $("#d-risk").onclick = () => window.open("/analyze/"+encodeURIComponent(q.symbol.replace(/\..*/,"")), "_blank");
+  $("#d-opts").onclick = () => { const p=$("#opts-panel"); p.classList.toggle("hidden");
+      if(!p.classList.contains("hidden")) loadOptions(q.symbol); };
+  $("#d-ask").onclick = () => { switchTab("agente"); $("#chatInput").value =
+      "Analizá "+q.symbol+" ("+q.name+"). ¿Qué debería mirar y cuáles son los riesgos?"; $("#chatInput").focus(); };
+}
+
+/* ---------------- Opciones ---------------- */
+let optSymbol=null, optSpot=null;
+async function loadOptions(symbol, expTs=null){
+  optSymbol=symbol;
+  $("#opts-tables").innerHTML='<div class="empty">Cargando opciones…</div>';
+  let o=null;
+  try{ o = await api("/api/options/"+encodeURIComponent(symbol)+(expTs?("?expiration="+expTs):"")); }catch(e){}
+  if(!o || o.status!=="ok"){
+    $("#opts-tables").innerHTML='<div class="empty">'+((o&&o.reason)||"Este activo no tiene cadena de opciones disponible.")+'</div>';
+    $("#opts-exps").innerHTML=""; $("#opts-spot").textContent=""; return;
+  }
+  optSpot=o.underlying_price;
+  $("#opts-spot").textContent = "Subyacente: "+fmtNum(o.underlying_price)+" "+(o.currency||"");
+  const exps=$("#opts-exps"); exps.innerHTML="";
+  o.expirations.slice(0,12).forEach(e=>{
+    const el=document.createElement("div");
+    const active = o.selected_expiration ? (e.ts===o.selected_expiration) : false;
+    el.className="range"+(active?" active":""); el.textContent=e.date;
+    el.onclick=()=>loadOptions(symbol, e.ts); exps.appendChild(el);
+  });
+  $("#opts-tables").innerHTML="";
+  const grid=document.createElement("div"); grid.className="opt-grid";
+  grid.appendChild(optTable("calls", o.calls)); grid.appendChild(optTable("puts", o.puts));
+  $("#opts-tables").appendChild(grid);
+  const n=document.createElement("div"); n.className="refnote";
+  n.textContent="Mostrando strikes cerca del precio actual. IV = volatilidad implícita · OI = interés abierto (contratos vivos).";
+  $("#opts-tables").appendChild(n);
+}
+function optTable(kind, rows){
+  // ordenar y quedarnos con ~10 strikes alrededor del subyacente
+  rows=(rows||[]).slice().sort((a,b)=>(a.strike||0)-(b.strike||0));
+  if(optSpot){
+    let idx=rows.findIndex(r=>r.strike>=optSpot); if(idx<0) idx=rows.length-1;
+    rows=rows.slice(Math.max(0,idx-5), idx+6);
+  }else rows=rows.slice(0,11);
+  const t=document.createElement("table"); t.className="opt "+kind;
+  t.innerHTML='<caption>'+(kind==="calls"?"Calls (comprar)":"Puts (vender)")+'</caption>'+
+    '<tr><th style="text-align:left">Strike</th><th>Últ.</th><th>IV%</th><th>OI</th></tr>';
+  rows.forEach(r=>{
+    const tr=document.createElement("tr"); if(r.itm) tr.className="itm";
+    tr.innerHTML='<td class="strike">'+fmtNum(r.strike)+'</td><td>'+(r.last!=null?fmtNum(r.last):"—")+
+      '</td><td>'+(r.iv!=null?r.iv:"—")+'</td><td>'+(r.open_interest!=null?r.open_interest:"—")+'</td>';
+    t.appendChild(tr);
+  });
+  if(!rows.length){ const tr=document.createElement("tr"); tr.innerHTML='<td colspan="4" style="text-align:center;color:var(--muted)">sin datos</td>'; t.appendChild(tr); }
+  return t;
+}
+function buildRanges(){
+  const host = $("#ranges"); host.innerHTML="";
+  ["1d","5d","1mo","6mo","1y","5y","max"].forEach(r=>{
+    const el=document.createElement("div"); el.className="range"+(r===detailRange?" active":"");
+    el.textContent=r; el.onclick=()=>{ detailRange=r; buildRanges(); loadChart(); }; host.appendChild(el);
+  });
+}
+async function loadChart(){
+  let h = {points:[]};
+  try{ h = await api("/api/history/"+encodeURIComponent(detailSymbol)+"?range="+detailRange); }catch(e){}
+  drawLine($("#d-chart"), h.points);
+}
+function drawLine(canvas, points){
+  const x = canvas.getContext("2d"), dpr = window.devicePixelRatio||1;
+  const cssW = canvas.parentElement.clientWidth - 30; canvas.style.width = cssW+"px";
+  canvas.width = cssW*dpr; canvas.height = 260*dpr; x.setTransform(dpr,0,0,dpr,0,0);
+  const W=cssW, H=260; x.clearRect(0,0,W,H);
+  if(!points || points.length<2){ x.fillStyle="#8a98b5"; x.font="13px sans-serif"; x.textAlign="center";
+    x.fillText("Sin datos para este rango", W/2, H/2); return; }
+  const cs = points.map(p=>p.c), min=Math.min(...cs), max=Math.max(...cs);
+  const pad=42, base=H-26, top=16, pw=W-pad-12, ph=base-top;
+  const up = cs[cs.length-1] >= cs[0]; const col = up ? "#39d98a" : "#ff5d73";
+  const sx = i => pad + pw*(i/(points.length-1));
+  const sy = v => base - ph*((v-min)/((max-min)||1));
+  // grid + labels
+  x.strokeStyle="#1e2a45"; x.fillStyle="#8a98b5"; x.font="11px sans-serif"; x.lineWidth=1;
+  for(let k=0;k<=3;k++){ const yy=top+ph*k/3, val=max-(max-min)*k/3;
+    x.beginPath(); x.moveTo(pad,yy); x.lineTo(W-12,yy); x.stroke();
+    x.textAlign="right"; x.fillText(fmtNum(val), pad-6, yy+3); }
+  // area
+  const grad=x.createLinearGradient(0,top,0,base); grad.addColorStop(0,col+"44"); grad.addColorStop(1,col+"00");
+  x.beginPath(); points.forEach((p,i)=> i?x.lineTo(sx(i),sy(p.c)):x.moveTo(sx(i),sy(p.c)));
+  x.lineTo(sx(points.length-1),base); x.lineTo(sx(0),base); x.closePath(); x.fillStyle=grad; x.fill();
+  // line
+  x.beginPath(); x.lineWidth=2; x.strokeStyle=col;
+  points.forEach((p,i)=> i?x.lineTo(sx(i),sy(p.c)):x.moveTo(sx(i),sy(p.c))); x.stroke();
+}
+
+/* ---------------- Watchlist ---------------- */
+async function loadWatchlist(){
+  let items=[]; try{ items = await api("/api/watchlist"); }catch(e){}
+  const host = $("#wl-list");
+  if(!items.length){ host.innerHTML='<div class="empty">Tu watchlist está vacía. Buscá un activo y tocá ☆.</div>'; return; }
+  host.innerHTML='<div class="empty">Actualizando cotizaciones…</div>';
+  const quotes = await Promise.all(items.map(i => api("/api/quote/"+encodeURIComponent(i.symbol)).catch(()=>({symbol:i.symbol,name:i.name,asset_class:i.asset_class,price:null}))));
+  host.innerHTML="";
+  quotes.forEach(q => host.appendChild(quoteRow(q,{removable:true})));
+}
+
+/* ---------------- Agente IA (chat) ---------------- */
+const conversation = [];
+const SUGGEST = ["¿Cómo viene Bitcoin esta semana?","Riesgo de NVDA","Comparame oro vs petróleo este año",
+  "¿Qué es un ETF?","Agregá AAPL a mi watchlist"];
+function buildSuggest(){
+  const host=$("#suggest"); host.innerHTML="";
+  SUGGEST.forEach(s=>{ const el=document.createElement("div"); el.className="sg"; el.textContent=s;
+    el.onclick=()=>{ $("#chatInput").value=s; sendChat(); }; host.appendChild(el); });
+}
+function addMsg(role, text){
+  const m=document.createElement("div"); m.className="msg "+role; m.textContent=text;
+  $("#msgs").appendChild(m); $("#msgs").scrollTop=$("#msgs").scrollHeight; return m;
+}
+async function sendChat(){
+  const input=$("#chatInput"); const text=input.value.trim(); if(!text) return;
+  input.value=""; addMsg("user",text); conversation.push({role:"user",content:text});
+  const thinking=addMsg("bot","Pensando…");
+  try{
+    const r = await api("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({messages:conversation})});
+    thinking.textContent = r.reply || "(sin respuesta)";
+    if(r.tool_calls && r.tool_calls.length){
+      const t=document.createElement("div"); t.className="msg tools";
+      t.textContent="🔧 herramientas: "+[...new Set(r.tool_calls)].join(", ");
+      $("#msgs").appendChild(t);
+    }
+    conversation.push({role:"assistant",content:r.reply||""});
+    loadWatchlist();
+  }catch(e){
+    thinking.textContent = (e && e.detail) ? ("⚠️ "+e.detail) : "⚠️ No pude responder ahora. ¿Está configurada la ANTHROPIC_API_KEY?";
+  }
+}
+$("#send").onclick = sendChat;
+$("#chatInput").addEventListener("keydown", e => { if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendChat(); } });
+
+/* ---------------- Tabs ---------------- */
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.tab===name));
+  $("#view-explorar").classList.toggle("hidden", name!=="explorar");
+  $("#view-watchlist").classList.toggle("hidden", name!=="watchlist");
+  $("#view-detalle").classList.toggle("hidden", name!=="detalle");
+  // En móvil el agente es una pestaña; en desktop está siempre a la derecha.
+  if(window.innerWidth < 900) $("#view-agente").classList.toggle("hidden", name!=="agente");
+  else $("#view-agente").classList.remove("hidden");
+  if(name==="watchlist") loadWatchlist();
+}
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+window.addEventListener("resize", ()=>{ if(detailSymbol && !$("#view-detalle").classList.contains("hidden")) loadChart(); });
+
+/* ---------------- Auto-refresh de cotizaciones (silencioso, en sitio) ---------------- */
+async function refreshVisibleQuotes(){
+  if(document.hidden) return;  // no gastar si la pestaña no está visible
+  const container = !$("#view-explorar").classList.contains("hidden") ? $("#cat-list")
+                  : (!$("#view-watchlist").classList.contains("hidden") ? $("#wl-list") : null);
+  if(!container) return;
+  const rows = [...container.querySelectorAll(".qrow[data-sym]")];
+  if(!rows.length) return;
+  const quotes = await Promise.all(rows.map(r => api("/api/quote/"+encodeURIComponent(r.dataset.sym)).catch(()=>null)));
+  quotes.forEach((q,i)=>{
+    if(!q) return;
+    const r=rows[i], p=r.querySelector(".price"), c=r.querySelector(".chg");
+    if(p) p.textContent = fmtNum(q.price)+" "+(q.currency||"");
+    if(c){ const dir=q.change_pct==null?"flat":(q.change_pct>0?"up":(q.change_pct<0?"down":"flat"));
+      c.className="chg "+dir; c.textContent=q.change_pct==null?"":((q.change_pct>0?"+":"")+q.change_pct+"%"); }
+  });
+}
+setInterval(refreshVisibleQuotes, 20000);  // cada 20 s
+
+/* ---------------- Init ---------------- */
+buildCats(); loadCategory(currentCat); buildSuggest();
+addMsg("bot","¡Hola! Soy el agente IA de Turpial Finanzas. Buscá cualquier activo arriba o preguntame: acciones, crypto, bonos, Forex, commodities… te traigo datos reales y te lo explico simple.");
+</script>
+</body>
+</html>
