@@ -49,6 +49,12 @@ Abrí `http://localhost:8000` y tenés la plataforma completa. El **agente IA** 
 `ANTHROPIC_API_KEY`; el resto (búsqueda, cotizaciones, gráficos, watchlist, Risk Score)
 funciona sin clave de Claude.
 
+### Atajo en Windows
+
+En vez de correr los comandos a mano, hacé **doble clic en `start.bat`**: actualiza el
+código, instala dependencias, levanta el servidor y abre el navegador en
+`http://localhost:8000`. (Necesitás Python 3.11+ instalado con "Add Python to PATH".)
+
 También hay CLI para análisis y cadencias:
 
 ```bash
