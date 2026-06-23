@@ -73,6 +73,36 @@ TOOLS = [
         },
     },
     {
+        "name": "fundamentales",
+        "description": "Key stats y fundamentales de un activo: market cap, P/E, márgenes, "
+                       "ROE, 52 semanas, dividendo, recomendación de analistas y precio objetivo.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"symbol": {"type": "string"}},
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "noticias",
+        "description": "Noticias recientes asociadas a un activo.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"symbol": {"type": "string"}},
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "screener",
+        "description": "Corre una pantalla de acciones. scr_id válidos: day_gainers, day_losers, "
+                       "most_actives, undervalued_large_caps, undervalued_growth_stocks, "
+                       "growth_technology_stocks, aggressive_small_caps.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"scr_id": {"type": "string"}},
+            "required": ["scr_id"],
+        },
+    },
+    {
         "name": "risk_score_accion",
         "description": "Calcula el Risk Score (3 pilares: valuación, salud financiera, crecimiento) "
                        "de una ACCIÓN de empresa con filings en la SEC (EE.UU.).",
@@ -142,6 +172,12 @@ def _execute(name: str, args: dict) -> str:
         return _dump({"symbol": o["symbol"], "subyacente": spot,
                       "vencimientos": [e["date"] for e in o["expirations"][:8]],
                       "calls_atm": near(o["calls"]), "puts_atm": near(o["puts"])})
+    if name == "fundamentales":
+        return _dump(market.quote_summary(args["symbol"]))
+    if name == "noticias":
+        return _dump(market.news(args["symbol"], 6))
+    if name == "screener":
+        return _dump(market.screen(args.get("scr_id", "day_gainers"), 15))
     if name == "risk_score_accion":
         from agents.risk_score import gather_data
         d = gather_data(args["ticker"])

@@ -19,6 +19,9 @@ _SEARCH = "https://query1.finance.yahoo.com/v1/finance/search"
 _CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}"
 _OPTIONS = "https://query1.finance.yahoo.com/v7/finance/options/{sym}"
 _CRUMB = "https://query1.finance.yahoo.com/v1/test/getcrumb"
+_QSUMMARY = "https://query1.finance.yahoo.com/v10/finance/quoteSummary/{sym}"
+_QUOTE = "https://query1.finance.yahoo.com/v7/finance/quote"
+_SCREENER = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
 
 # Sesión con cookie + crumb, necesaria para el endpoint de opciones de Yahoo.
 _session: httpx.Client | None = None
@@ -116,11 +119,170 @@ def history(symbol: str, rng: str = "1y") -> dict:
                          params={"range": rng, "interval": interval}).json()
         res = data["chart"]["result"][0]
         ts = res["timestamp"]
-        closes = res["indicators"]["quote"][0]["close"]
+        q = res["indicators"]["quote"][0]
+        o, h, l, cl, v = q["open"], q["high"], q["low"], q["close"], q["volume"]
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
-        return {"symbol": symbol.upper(), "range": rng, "points": []}
-    points = [{"t": t, "c": round(c, 4)} for t, c in zip(ts, closes) if c is not None]
-    return {"symbol": symbol.upper(), "range": rng, "points": points}
+        return {"symbol": symbol.upper(), "range": rng, "points": [], "candles": []}
+    points, candles = [], []
+    for i, t in enumerate(ts):
+        if cl[i] is None:
+            continue
+        points.append({"t": t, "c": round(cl[i], 4)})
+        candles.append({
+            "t": t,
+            "o": round(o[i], 4) if o[i] is not None else cl[i],
+            "h": round(h[i], 4) if h[i] is not None else cl[i],
+            "l": round(l[i], 4) if l[i] is not None else cl[i],
+            "c": round(cl[i], 4),
+            "v": int(v[i]) if v[i] is not None else 0,
+        })
+    return {"symbol": symbol.upper(), "range": rng, "points": points, "candles": candles}
+
+
+def _raw(node, *path):
+    """Desempaqueta valores de Yahoo (que vienen como {raw, fmt}); navega por `path`."""
+    cur = node
+    for p in path:
+        if not isinstance(cur, dict) or p not in cur:
+            return None
+        cur = cur[p]
+    if isinstance(cur, dict):
+        return cur.get("raw")
+    return cur
+
+
+def quote_summary(symbol: str) -> dict:
+    """Fundamentales y key stats de un activo (estilo terminal): valuación, márgenes,
+    52 semanas, dividendo, recomendación de analistas, etc."""
+    s, crumb = _ensure_crumb()
+    params = {"modules": "summaryDetail,defaultKeyStatistics,financialData,price"}
+    if crumb:
+        params["crumb"] = crumb
+    try:
+        cli = s or httpx.Client(headers=_UA, timeout=20.0)
+        data = cli.get(_QSUMMARY.format(sym=symbol), params=params).json()
+        r = data["quoteSummary"]["result"][0]
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+        return {"symbol": symbol.upper(), "status": "no_data"}
+    sd, ks, fd, pr = r.get("summaryDetail", {}), r.get("defaultKeyStatistics", {}), \
+        r.get("financialData", {}), r.get("price", {})
+    return {
+        "symbol": symbol.upper(),
+        "status": "ok",
+        "name": _raw(pr, "longName") or _raw(pr, "shortName"),
+        "market_cap": _raw(pr, "marketCap") or _raw(sd, "marketCap"),
+        "currency": _raw(pr, "currency"),
+        "pe_trailing": _raw(sd, "trailingPE"),
+        "pe_forward": _raw(sd, "forwardPE"),
+        "eps_trailing": _raw(ks, "trailingEps"),
+        "price_to_book": _raw(ks, "priceToBook"),
+        "beta": _raw(sd, "beta") or _raw(ks, "beta"),
+        "dividend_yield": _raw(sd, "dividendYield"),
+        "wk52_high": _raw(sd, "fiftyTwoWeekHigh"),
+        "wk52_low": _raw(sd, "fiftyTwoWeekLow"),
+        "day_high": _raw(sd, "dayHigh"),
+        "day_low": _raw(sd, "dayLow"),
+        "volume": _raw(sd, "volume"),
+        "avg_volume": _raw(sd, "averageVolume"),
+        "profit_margin": _raw(fd, "profitMargins") or _raw(ks, "profitMargins"),
+        "gross_margin": _raw(fd, "grossMargins"),
+        "roe": _raw(fd, "returnOnEquity"),
+        "revenue_growth": _raw(fd, "revenueGrowth"),
+        "debt_to_equity": _raw(fd, "debtToEquity"),
+        "free_cashflow": _raw(fd, "freeCashflow"),
+        "ebitda": _raw(fd, "ebitda"),
+        "target_mean": _raw(fd, "targetMeanPrice"),
+        "recommendation": _raw(fd, "recommendationKey"),
+        "num_analysts": _raw(fd, "numberOfAnalystOpinions"),
+    }
+
+
+def batch_quotes(symbols: list[str]) -> list[dict]:
+    """Cotización de varios símbolos en una sola llamada (watchlist, movers)."""
+    if not symbols:
+        return []
+    s, crumb = _ensure_crumb()
+    params = {"symbols": ",".join(symbols)}
+    if crumb:
+        params["crumb"] = crumb
+    try:
+        cli = s or httpx.Client(headers=_UA, timeout=20.0)
+        data = cli.get(_QUOTE, params=params).json()
+        rows = data["quoteResponse"]["result"]
+    except (httpx.HTTPError, KeyError, TypeError, ValueError):
+        return []
+    out = []
+    for q in rows:
+        out.append({
+            "symbol": q.get("symbol"),
+            "name": q.get("shortName") or q.get("longName") or q.get("symbol"),
+            "price": q.get("regularMarketPrice"),
+            "change_pct": round(q["regularMarketChangePercent"], 2)
+            if q.get("regularMarketChangePercent") is not None else None,
+            "currency": q.get("currency", "USD"),
+            "asset_class": asset_class(q.get("quoteType")),
+            "market_cap": q.get("marketCap"),
+            "volume": q.get("regularMarketVolume"),
+        })
+    return out
+
+
+# Pantallas predefinidas de Yahoo (scrId -> etiqueta didáctica).
+SCREENS = {
+    "day_gainers": "Mayores subas del día",
+    "day_losers": "Mayores bajas del día",
+    "most_actives": "Más operadas",
+    "undervalued_large_caps": "Grandes infravaloradas",
+    "undervalued_growth_stocks": "Crecimiento a buen precio",
+    "growth_technology_stocks": "Tecnológicas en crecimiento",
+    "aggressive_small_caps": "Small caps agresivas",
+}
+
+
+def screen(scr_id: str = "day_gainers", count: int = 25) -> dict:
+    """Corre una pantalla predefinida y devuelve las acciones que la cumplen."""
+    if scr_id not in SCREENS:
+        scr_id = "day_gainers"
+    s, crumb = _ensure_crumb()
+    params = {"scrIds": scr_id, "count": count}
+    if crumb:
+        params["crumb"] = crumb
+    try:
+        cli = s or httpx.Client(headers=_UA, timeout=20.0)
+        data = cli.get(_SCREENER, params=params).json()
+        quotes = data["finance"]["result"][0]["quotes"]
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+        return {"scr_id": scr_id, "label": SCREENS[scr_id], "results": []}
+    results = [{
+        "symbol": q.get("symbol"),
+        "name": q.get("shortName") or q.get("symbol"),
+        "price": q.get("regularMarketPrice"),
+        "change_pct": round(q["regularMarketChangePercent"], 2)
+        if q.get("regularMarketChangePercent") is not None else None,
+        "market_cap": q.get("marketCap"),
+        "pe": q.get("trailingPE"),
+        "volume": q.get("regularMarketVolume"),
+        "asset_class": asset_class(q.get("quoteType")),
+    } for q in quotes]
+    return {"scr_id": scr_id, "label": SCREENS[scr_id], "results": results}
+
+
+def news(symbol: str, count: int = 8) -> list[dict]:
+    """Noticias recientes asociadas a un símbolo."""
+    try:
+        with _client() as c:
+            data = c.get(_SEARCH, params={"q": symbol, "newsCount": count, "quotesCount": 0}).json()
+    except (httpx.HTTPError, ValueError):
+        return []
+    out = []
+    for n in data.get("news", []):
+        out.append({
+            "title": n.get("title"),
+            "publisher": n.get("publisher"),
+            "link": n.get("link"),
+            "published": n.get("providerPublishTime"),
+        })
+    return out
 
 
 def _ensure_crumb() -> tuple[httpx.Client, str] | tuple[None, None]:

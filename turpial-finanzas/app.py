@@ -53,6 +53,43 @@ def api_options(symbol: str, expiration: int | None = Query(None)) -> JSONRespon
     return JSONResponse(content=market.options(symbol, expiration))
 
 
+@app.get("/api/fundamentals/{symbol}")
+def api_fundamentals(symbol: str) -> JSONResponse:
+    return JSONResponse(content=market.quote_summary(symbol))
+
+
+@app.get("/api/news/{symbol}")
+def api_news(symbol: str) -> JSONResponse:
+    return JSONResponse(content=market.news(symbol))
+
+
+@app.get("/api/screens")
+def api_screens() -> JSONResponse:
+    return JSONResponse(content=market.SCREENS)
+
+
+@app.get("/api/screen/{scr_id}")
+def api_screen(scr_id: str) -> JSONResponse:
+    return JSONResponse(content=market.screen(scr_id))
+
+
+@app.get("/api/overview")
+def api_overview() -> JSONResponse:
+    """Snapshot de mercado: índices y benchmarks clave + top movers."""
+    bench = ["^GSPC", "^IXIC", "^DJI", "^RUT", "^VIX", "GC=F", "CL=F", "BTC-USD", "EURUSD=X", "^TNX"]
+    return JSONResponse(content={
+        "benchmarks": market.batch_quotes(bench),
+        "gainers": market.screen("day_gainers", 8)["results"],
+        "losers": market.screen("day_losers", 8)["results"],
+        "actives": market.screen("most_actives", 8)["results"],
+    })
+
+
+@app.post("/api/quotes")
+def api_quotes(payload: dict = Body(...)) -> JSONResponse:
+    return JSONResponse(content=market.batch_quotes((payload or {}).get("symbols", [])))
+
+
 # ------------------------------------------------------------------- Watchlist
 @app.get("/api/watchlist")
 def api_watchlist() -> JSONResponse:
