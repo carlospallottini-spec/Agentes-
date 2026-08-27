@@ -85,6 +85,19 @@ python turpial.py --par EWA EWC   # cointegración y OU sobre el spread
 python tests/test_quant.py        # 22 tests contra procesos simulados, sin red
 ```
 
+### Llevarlo a un tester real
+
+La misma matemática está portada a **MetaTrader 5** (dos EAs: un símbolo y pares
+cointegrados) y a **NinjaTrader 8** (futuros, cuenta demo), en
+[`trading/`](./trading). Los ports no son una reescritura a ojo: `verify_ports.py`
+extrae la matemática de los archivos de MQL5 y C#, la compila y exige que dé los mismos
+números que `quant/` dentro de 1e-9, incluidas 301 ventanas móviles consecutivas.
+
+```bash
+python trading/tests/verify_ports.py     # MQL5 y C# vs. el motor de Python
+python trading/tests/compare_ea_csv.py OU_diag_EURUSD_PERIOD_H1.csv --ventana 250
+```
+
 En la SPA, el botón **🧮 Quant** de cualquier activo abre el panel con los parámetros
 calibrados, la curva de decaimiento, la matriz de transición y el backtest.
 

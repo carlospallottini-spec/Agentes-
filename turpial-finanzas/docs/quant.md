@@ -223,7 +223,18 @@ parámetros **conocidos** y exige recuperarlos.
 python tests/test_quant.py     # 22/22 tests, sin red, deterministas
 ```
 
-## 10. Limitaciones honestas
+## 10. De la investigación al tester
+
+La misma matemática está portada a MQL5 (MetaTrader 5) y a C# (NinjaTrader 8, para
+futuros) en [`../trading/`](../trading). El port se verifica ejecutándolo: `verify_ports.py`
+extrae la matemática de los archivos reales de los EAs, la compila y compara contra este
+motor con tolerancia 1e-9, incluyendo un bucle de 301 ventanas móviles — que es donde un
+off-by-one se disfrazaría de rentabilidad.
+
+Lo que ese test **no** cubre es la capa de ejecución de cada plataforma (órdenes, lotes,
+sesiones, llenado). Eso sólo lo prueba el tester.
+
+## 11. Limitaciones honestas
 
 - **Datos de cierre diario, gratuitos** (Yahoo). Sin ajuste por dividendos ni por splits más
   allá de lo que ya trae el feed; sin datos intradiarios ni libro de órdenes.
