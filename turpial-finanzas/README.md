@@ -68,7 +68,24 @@ y el **half-life** es lo que hace operable al modelo: dice en cuántos días se 
 | `quant/strategies.py` | Reglas de entrada/salida por z-score, corte temporal en múltiplos del half-life y filtro de régimen |
 | `quant/backtest.py` | Backtest **walk-forward** (sin look-ahead) con costos, y métricas contra buy & hold |
 | `quant/pairs.py` | Cointegración de Engle-Granger, hedge ratio β y OU sobre el spread |
+| `quant/scan.py` | Significancia del Sharpe, Bonferroni y Benjamini-Hochberg |
 | `quant/engine.py` | Orquesta todo con datos reales de mercado |
+
+### Resultados medidos
+
+El repo no se queda en la demo: [`docs/resultados.md`](./docs/resultados.md) tiene el
+escaneo completo —20 pares en velas diarias y 12 instrumentos × 4 timeframes
+intradiarios, 68 pruebas— con error estándar del Sharpe (Lo, 2002) y corrección por
+múltiples tests (Bonferroni y Benjamini-Hochberg).
+
+El resultado, en una línea: **no se encontró reversión a la media operable en ningún
+lado.** Ninguna de las 48 pruebas intradiarias llega a p < 0,05, y a costo cero el Sharpe
+medio es −0,11 con t = −0,33. No es que los costos se coman el edge: no hay edge.
+
+```bash
+python research/escaneo.py --modo pares --guardar
+python research/escaneo.py --modo intradiario --gate --sensibilidad --guardar
+```
 
 **Lo importante es lo que el motor se niega a afirmar.** Toda serie finita produce un
 half-life; eso no prueba que haya reversión. Cada resultado viene con su test —
@@ -82,7 +99,7 @@ La matemática completa, con derivaciones y limitaciones, está en
 ```bash
 python turpial.py --quant KO      # OU + Markov + backtest de un activo
 python turpial.py --par EWA EWC   # cointegración y OU sobre el spread
-python tests/test_quant.py        # 22 tests contra procesos simulados, sin red
+python tests/test_quant.py        # 29 tests contra procesos simulados, sin red
 ```
 
 ### Llevarlo a un tester real

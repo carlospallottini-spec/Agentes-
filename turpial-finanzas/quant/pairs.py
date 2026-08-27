@@ -110,7 +110,7 @@ def _veredicto(p: dict, cointegrado: bool) -> str:
 def walk_forward(closes_a: list[float], closes_b: list[float], ventana: int = 250,
                  entrada: float = 2.0, salida: float = 0.5, stop: float = 3.5,
                  max_hold_hl: float = 3.0, cost_bps: float = 5.0,
-                 refit: int = 5) -> dict:
+                 refit: int = 5, periodos_por_anio: int = 252) -> dict:
     """Backtest del par re-estimando β y el OU en cada ventana (sin look-ahead).
 
     El retorno de la pata es Δlog A − β·Δlog B, y el costo se cobra sobre el turnover de
@@ -167,11 +167,12 @@ def walk_forward(closes_a: list[float], closes_b: list[float], ventana: int = 25
         rets.append(pos * r_par - turnover * costo * (1.0 + abs(beta or 0.0)))
         posiciones.append(pos)
 
-    res = metrics(rets, posiciones, trades)
+    res = metrics(rets, posiciones, trades, periodos_por_anio)
     res["curva"] = [round(v, 5) for v in res["curva"]]
     return {"ok": True, "estrategia": "Pares cointegrados (OU sobre el spread)",
             "parametros": {"ventana": ventana, "entrada_z": entrada, "salida_z": salida,
                            "stop_z": stop, "max_hold_half_lives": max_hold_hl,
-                           "costo_bps": cost_bps, "refit_cada": refit},
+                           "costo_bps": cost_bps, "refit_cada": refit,
+                           "periodos_por_anio": periodos_por_anio},
             "beta_final": round(beta, 4) if beta else None,
             "metricas": res, "ultimos_eventos": eventos[-15:], "n_eventos": len(eventos)}

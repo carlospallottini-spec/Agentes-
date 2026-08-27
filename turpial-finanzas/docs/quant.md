@@ -220,10 +220,16 @@ parámetros **conocidos** y exige recuperarlos.
 - El backtest no mira el futuro (test bit a bit descrito arriba).
 
 ```bash
-python tests/test_quant.py     # 22/22 tests, sin red, deterministas
+python tests/test_quant.py     # 29/29 tests, sin red, deterministas
 ```
 
-## 10. De la investigación al tester
+## 10. Qué encontró todo esto
+
+Nada operable. El escaneo completo —68 pruebas con corrección por múltiples tests— está en
+[`resultados.md`](./resultados.md). Vale la pena leerlo antes que cualquier otra cosa de
+este repo: es el resultado real, y es negativo.
+
+## 11. De la investigación al tester
 
 La misma matemática está portada a MQL5 (MetaTrader 5) y a C# (NinjaTrader 8, para
 futuros) en [`../trading/`](../trading). El port se verifica ejecutándolo: `verify_ports.py`
@@ -234,7 +240,7 @@ off-by-one se disfrazaría de rentabilidad.
 Lo que ese test **no** cubre es la capa de ejecución de cada plataforma (órdenes, lotes,
 sesiones, llenado). Eso sólo lo prueba el tester.
 
-## 11. Limitaciones honestas
+## 12. Limitaciones honestas
 
 - **Datos de cierre diario, gratuitos** (Yahoo). Sin ajuste por dividendos ni por splits más
   allá de lo que ya trae el feed; sin datos intradiarios ni libro de órdenes.

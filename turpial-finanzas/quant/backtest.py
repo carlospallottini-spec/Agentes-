@@ -65,11 +65,20 @@ def metrics(rets: list[float], posiciones: list[int] | None = None,
 def walk_forward(closes: list[float], ventana: int = 250, entrada: float = 1.5,
                  salida: float = 0.5, stop: float = 3.0, max_hold_hl: float = 3.0,
                  cost_bps: float = 5.0, usar_regimen: bool = True,
-                 refit: int = 5) -> dict:
+                 refit: int = 5, periodos_por_anio: int = ANUAL,
+                 exigir_estacionaria: bool = False) -> dict:
     """Corre la estrategia OU (+ filtro de régimen) sobre una serie de cierres.
 
     `ventana` es el largo de la ventana móvil de calibración, `refit` cada cuántas barras
     se re-estiman los parámetros (5 = una vez por semana bursátil; 1 = cada barra).
+
+    `periodos_por_anio` es cuántas barras tiene un año en esta serie, y sólo afecta a la
+    anualización de las métricas. El default de 252 vale para velas diarias; en 5 minutos
+    son decenas de miles, y usar 252 ahí infla el Sharpe por un factor de ~17.
+
+    `exigir_estacionaria` activa el mismo gate que llevan los EAs: sólo se opera en las
+    ventanas donde el test de Dickey-Fuller rechaza la raíz unitaria al 5%. Con el gate
+    apagado se mide qué pasaría ignorando la estadística, que es la comparación honesta.
     """
     if len(closes) < ventana + 30:
         return {"ok": False,
@@ -97,7 +106,9 @@ def walk_forward(closes: list[float], ventana: int = 250, entrada: float = 1.5,
                 r_win = [win[i] - win[i - 1] for i in range(1, len(win))]
                 regimen = markov.analyze(r_win)
 
-        if params.get("ok"):
+        habilitado = params.get("ok") and (not exigir_estacionaria
+                                           or params.get("estacionaria_5pct"))
+        if habilitado:
             sigma_eq = params["sigma_eq"]
             z = (x[t] - params["mu"]) / sigma_eq if sigma_eq > 0 else 0.0
             objetivo, motivo = ou_position(z, pos, bars_held, params["half_life"],
@@ -107,8 +118,12 @@ def walk_forward(closes: list[float], ventana: int = 250, entrada: float = 1.5,
                     objetivo, motivo = pos, "bloqueado por régimen persistente"
                     bloqueos += 1
         else:
-            # Sin reversión estimable no se opera: la hipótesis del modelo no se cumple.
-            objetivo, z, motivo = FLAT, 0.0, params.get("motivo", "calibración inválida")
+            # Sin reversión estimable (o sin significancia, con el gate activo) no se
+            # opera: la hipótesis del modelo no se cumple.
+            objetivo, z = FLAT, 0.0
+            motivo = params.get("motivo") or (
+                "Dickey-Fuller no rechaza la raíz unitaria al 5%"
+                if params.get("ok") else "calibración inválida")
 
         turnover = abs(objetivo - pos)
         if turnover:
@@ -126,18 +141,22 @@ def walk_forward(closes: list[float], ventana: int = 250, entrada: float = 1.5,
         posiciones.append(pos)
         bh.append(r_next)
 
-    resultado = metrics(rets, posiciones, trades)
+    resultado = metrics(rets, posiciones, trades, periodos_por_anio)
     resultado["curva"] = [round(v, 5) for v in resultado["curva"]]
-    comparacion = metrics(bh)
+    comparacion = metrics(bh, periodos_por_anio=periodos_por_anio)
     comparacion.pop("curva", None)
 
     return {
         "ok": True,
-        "estrategia": "OU mean-reversion" + (" + filtro Markov" if usar_regimen else ""),
+        "estrategia": ("OU mean-reversion"
+                       + (" + gate Dickey-Fuller" if exigir_estacionaria else "")
+                       + (" + filtro Markov" if usar_regimen else "")),
         "parametros": {"ventana": ventana, "entrada_z": entrada, "salida_z": salida,
                        "stop_z": stop, "max_hold_half_lives": max_hold_hl,
                        "costo_bps": cost_bps, "refit_cada": refit,
-                       "filtro_regimen": usar_regimen},
+                       "filtro_regimen": usar_regimen,
+                       "periodos_por_anio": periodos_por_anio,
+                       "gate_estacionariedad": exigir_estacionaria},
         "metricas": resultado,
         "buy_and_hold": comparacion,
         "señales_bloqueadas_por_regimen": bloqueos,

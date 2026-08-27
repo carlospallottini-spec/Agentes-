@@ -165,35 +165,39 @@ Para probar sin arriesgar tamaño, usá los **micros** (MES, MNQ): un tick de ME
 
 ## Qué esperar antes de abrir el tester
 
-No quiero que descubras esto después de una tarde de optimización. Corrí la **misma lógica
-de señales** del EA (calibración, gate, filtro de régimen y reglas de z-score, con la
-réplica en Python) sobre 2 años de EURUSD y GBPUSD en H1, con 1 bp de costo por cambio de
-posición (≈1 pip):
+No quiero que descubras esto después de una tarde de optimización.
 
-| Símbolo | Gate DF | Barras operables | Trades | Sharpe | Retorno | Max DD |
-|---|---|---|---|---|---|---|
-| EURUSD H1 | **ON** | 7 % | 30 | 0,33 | +1,08 % | 0,41 % |
-| EURUSD H1 | off | 96 % | 162 | −0,10 | −1,45 % | 3,48 % |
-| GBPUSD H1 | **ON** | 4 % | 12 | −0,39 | −0,90 % | 0,90 % |
-| GBPUSD H1 | off | 97 % | 164 | −0,22 | −3,45 % | 3,69 % |
+**EURUSD y GBPUSD en H1, 2 años, costo 1 bp** (la misma lógica del EA, corrida con
+`quant/`):
 
-Buy & hold en el mismo período: EURUSD −0,38 %, GBPUSD +0,51 %.
+| Símbolo | Gate DF | Trades | Exposición | Sharpe | t | Retorno | Max DD |
+|---|---|---|---|---|---|---|---|
+| EURUSD H1 | **ON** | 38 | 1,1 % | +1,38 | 1,38 | +1,57 % | 0,30 % |
+| EURUSD H1 | off | 360 | 28,7 % | −0,06 | −0,08 | −0,46 % | 7,51 % |
+| GBPUSD H1 | **ON** | 42 | 1,1 % | −0,08 | −0,11 | −0,10 % | 0,58 % |
+| GBPUSD H1 | off | 424 | 29,6 % | −0,57 | −0,74 | −4,27 % | 5,32 % |
 
-Tres lecturas, en orden de importancia:
+Ninguno llega a significancia: el mejor caso (EURUSD con gate) tiene **t = 1,38**, o sea
+p = 0,17. Con 2 años de muestra el error estándar de un Sharpe es ≈ 0,7, así que un +1,38
+no se distingue de cero.
 
-1. **El gate hace lo que promete.** Apagado, la estrategia opera el 96 % del tiempo y
-   pierde plata de forma consistente en los dos pares. Encendido, opera el 4-7 % del tiempo
-   y deja de sangrar. Eso es exactamente lo que tiene que hacer un test de raíz unitaria.
-2. **Y aun así, esto no demuestra un edge.** 30 trades en EURUSD y 12 en GBPUSD no
-   sostienen ninguna conclusión, y GBPUSD queda negativo. Un Sharpe de 0,33 sobre 30
-   operaciones es ruido con formato de resultado.
-3. **El half-life mediano de las ventanas que pasan es de 9-13 barras** en H1: si el
-   modelo describe algo, describe algo de medio día, no de semanas.
+Y eso es sólo la punta. El escaneo completo —12 instrumentos × 4 timeframes, 48 pruebas—
+está en [`../docs/resultados.md`](../docs/resultados.md). El resumen:
 
-Los datos son horarios de Yahoo, que no es un feed de bróker: hay huecos de sesión y menos
-granularidad de la real. Tomalo como orden de magnitud y volvé a medirlo en el tester con
-el historial de tu bróker. Y si tu resultado ahí sale mucho mejor que esto, la primera
-hipótesis a descartar es que el spread esté modelado de forma optimista.
+- **Ninguna de las 48 pruebas alcanza p < 0,05**, ni siquiera nominal (el azar debería
+  regalar 2,4). Cero sobreviven Bonferroni o Benjamini-Hochberg.
+- El **Sharpe medio es −1,24 con t = −2,87**: lo único significativo del experimento es
+  que la estrategia pierde plata.
+- **A costo cero el Sharpe medio es −0,11 con t = −0,33**, 21 de 48 positivos. No es que
+  los costos se coman el edge: no hay edge.
+- Cuanto más bajo el timeframe, peor. En 5 minutos se opera 3× más y se pierde 8× más.
+
+El gate hace lo que promete —baja la exposición de 28 % a 1,7 % y corta el sangrado—, pero
+a costo cero **es peor** que sin gate: las ventanas donde Dickey-Fuller rechaza no son
+mejores que el promedio. Ayuda operando menos, no operando mejor.
+
+Si tu resultado en el tester sale mucho mejor que esto, la primera hipótesis a descartar es
+que el spread esté modelado de forma optimista.
 
 ---
 

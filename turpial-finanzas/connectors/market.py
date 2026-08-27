@@ -40,10 +40,19 @@ _CLASS = {
 # Intervalos de velas aceptados por Yahoo (los que usamos).
 _INTERVALS = {"5m", "15m", "30m", "1h", "1d", "1wk", "1mo"}
 
-# Rangos válidos -> intervalo de velas adecuado.
+# Rangos válidos -> intervalo de velas por defecto.
 _RANGE_INTERVAL = {
-    "1d": "5m", "5d": "30m", "1mo": "1d", "6mo": "1d",
-    "1y": "1d", "5y": "1wk", "max": "1mo",
+    "1d": "5m", "5d": "30m", "1mo": "1d", "3mo": "1d", "6mo": "1d",
+    "1y": "1d", "2y": "1d", "5y": "1wk", "10y": "1wk", "ytd": "1d", "max": "1mo",
+}
+
+# Profundidad máxima que Yahoo sirve por intervalo, en días. Los topes reales son
+# 7 / 60 / 730, pero el límite es estricto ("must be within the last 60 days"): pedir
+# el tope exacto cae afuera por el redondeo del reloj y devuelve "Unprocessable
+# Entity". Se deja un día de margen.
+_MAX_DIAS = {
+    "1m": 6, "2m": 59, "5m": 59, "15m": 59, "30m": 59, "90m": 59,
+    "1h": 720, "1d": 36500, "1wk": 36500, "1mo": 36500,
 }
 
 
@@ -116,7 +125,14 @@ def history(symbol: str, rng: str = "1y", interval: str | None = None) -> dict:
     por defecto vendría semanal). Lo usa el motor cuantitativo, que necesita muchos
     puntos diarios para calibrar el proceso de Ornstein-Uhlenbeck.
     """
-    rng = rng if rng in _RANGE_INTERVAL else "1y"
+    if rng not in _RANGE_INTERVAL:
+        # Antes esto caía a "1y" en silencio y devolvía un histórico más corto que el
+        # pedido, sin que el que llama se enterara. Ahora el rango efectivo viaja en
+        # la respuesta y queda un aviso en el dict.
+        aviso = f"Rango '{rng}' no soportado por Yahoo; se usó '1y'."
+        rng = "1y"
+    else:
+        aviso = None
     interval = interval if interval in _INTERVALS else _RANGE_INTERVAL[rng]
     try:
         with _client() as c:
@@ -128,7 +144,37 @@ def history(symbol: str, rng: str = "1y", interval: str | None = None) -> dict:
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
         return {"symbol": symbol.upper(), "range": rng, "points": []}
     points = [{"t": t, "c": round(c, 4)} for t, c in zip(ts, closes) if c is not None]
-    return {"symbol": symbol.upper(), "range": rng, "points": points}
+    out = {"symbol": symbol.upper(), "range": rng, "interval": interval, "points": points}
+    if aviso:
+        out["aviso"] = aviso
+    return out
+
+
+def intraday(symbol: str, interval: str = "5m", dias: int | None = None) -> dict:
+    """Velas intradiarias con la máxima profundidad que Yahoo permite para `interval`.
+
+    El endpoint de rangos con nombre ("1mo", "3mo") rechaza los intervalos cortos más
+    allá de su tope; pidiendo por timestamps se llega al límite real (60 días en 5m/15m,
+    7 en 1m). Devuelve el mismo formato que `history`, más `dias_pedidos`.
+    """
+    interval = interval if interval in _INTERVALS else "5m"
+    tope = _MAX_DIAS.get(interval, 60)
+    dias = min(dias or tope, tope)
+    fin = int(datetime.now(tz=timezone.utc).timestamp())
+    ini = fin - dias * 86400
+    try:
+        with _client() as c:
+            data = c.get(_CHART.format(sym=symbol),
+                         params={"period1": ini, "period2": fin, "interval": interval}).json()
+        res = data["chart"]["result"][0]
+        ts = res["timestamp"]
+        closes = res["indicators"]["quote"][0]["close"]
+    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+        return {"symbol": symbol.upper(), "interval": interval, "dias_pedidos": dias,
+                "points": []}
+    points = [{"t": t, "c": round(c, 6)} for t, c in zip(ts, closes) if c is not None]
+    return {"symbol": symbol.upper(), "interval": interval, "dias_pedidos": dias,
+            "range": f"{dias}d", "points": points}
 
 
 def _ensure_crumb() -> tuple[httpx.Client, str] | tuple[None, None]:

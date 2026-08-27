@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from quant import backtest, markov, ou, pairs  # noqa: E402
+from quant import backtest, markov, ou, pairs, scan  # noqa: E402
 from quant.stats import chi2_sf, normal_cdf, ols, quantile  # noqa: E402
 from quant.strategies import FLAT, LONG, SHORT, ou_position, regime_allows  # noqa: E402
 
@@ -219,6 +219,23 @@ def test_backtest_sin_look_ahead():
         assert a[i] == b[i], f"divergencia en la barra {i}: {a[i]} vs {b[i]}"
 
 
+def test_gate_de_estacionariedad_reduce_la_operativa():
+    """Con el gate activo se opera sólo donde Dickey-Fuller rechaza: menos exposición."""
+    rng = random.Random(77)
+    px, x = [100.0], math.log(100.0)
+    for _ in range(1499):
+        x += rng.gauss(0, 0.012)
+        px.append(math.exp(x))
+    sin = backtest.walk_forward(px, ventana=250, exigir_estacionaria=False)
+    con = backtest.walk_forward(px, ventana=250, exigir_estacionaria=True)
+    assert sin["ok"] and con["ok"]
+    # Sobre un random walk el gate casi nunca habilita: debe operar mucho menos.
+    assert con["metricas"]["exposicion_pct"] < sin["metricas"]["exposicion_pct"]
+    assert con["metricas"]["trades"] <= sin["metricas"]["trades"]
+    assert "gate Dickey-Fuller" in con["estrategia"]
+    assert con["parametros"]["gate_estacionariedad"] is True
+
+
 def test_backtest_costos_reducen_retorno():
     sin = backtest.walk_forward(_precios_ou(), ventana=250, cost_bps=0.0)
     con = backtest.walk_forward(_precios_ou(), ventana=250, cost_bps=50.0)
@@ -278,6 +295,75 @@ def test_pares_rechaza_series_independientes():
     assert r["ok"]
     assert r["engle_granger"]["cointegrado_5pct"] is False
     assert "NO pasa el test" in r["veredicto"]
+
+
+# ------------------------------------------------- estadística del escaneo
+def test_sharpe_se_formula_de_lo():
+    """SE(S) = sqrt((1 + S²/2)/T). Con 4 años y S=0.5 da 0.53."""
+    assert abs(scan.sharpe_se(0.5, 4, 1.0) - math.sqrt((1 + 0.125) / 4)) < 1e-12
+    # Más años => más precisión.
+    assert scan.sharpe_se(1.0, 10, 1.0) < scan.sharpe_se(1.0, 2, 1.0)
+    # Un Sharpe alto medido sobre 2 meses no puede ser significativo.
+    t, p = scan.sharpe_pvalue(2.0, 1, 6.25)
+    assert abs(t) < 1.0 and p > 0.5
+    # El mismo Sharpe sobre 20 años sí lo es.
+    t2, p2 = scan.sharpe_pvalue(2.0, 20, 1.0)
+    assert t2 > 5 and p2 < 1e-6
+
+
+def test_bonferroni_y_benjamini_hochberg():
+    ps = [0.001, 0.008, 0.02, 0.04, 0.2, 0.5, 0.7, 0.9, 0.95, 0.99]
+    b = scan.bonferroni(ps, 0.05)
+    assert abs(b["umbral"] - 0.005) < 1e-12
+    assert b["sobreviven"] == [True] + [False] * 9      # sólo p=0.001 < 0.005
+
+    bh = scan.benjamini_hochberg(ps, 0.05)
+    # p_(1)=0.001<=0.005 ok; p_(2)=0.008<=0.010 ok; p_(3)=0.02>0.015 no.
+    assert bh["k"] == 2
+    assert bh["sobreviven"][:2] == [True, True]
+    assert not any(bh["sobreviven"][2:])
+    # BH nunca es más estricto que Bonferroni.
+    assert sum(bh["sobreviven"]) >= sum(b["sobreviven"])
+
+
+def test_correcciones_sobre_ruido_puro():
+    """Con 100 p-valores uniformes (todo ruido), no debería sobrevivir casi nada."""
+    rng = random.Random(99)
+    ps = [rng.random() for _ in range(100)]
+    assert sum(scan.bonferroni(ps)["sobreviven"]) <= 1
+    assert sum(scan.benjamini_hochberg(ps)["sobreviven"]) <= 2
+
+
+def test_periodos_por_anio_desde_timestamps():
+    """Se mide de los datos, no se asume 252: equivocarse acá rompe el Sharpe."""
+    diario = [i * 86400 for i in range(400)]
+    assert abs(scan.periodos_por_anio(diario) - 365.25) < 1.0
+    cinco_min = [i * 300 for i in range(5000)]
+    assert abs(scan.periodos_por_anio(cinco_min) - 365.25 * 288) < 100
+
+
+def test_diagnostico_gaps_detecta_fines_de_semana():
+    ts = []
+    t = 0
+    for semana in range(4):
+        for i in range(120):        # 120 barras horarias de "semana"
+            ts.append(t)
+            t += 3600
+        t += 48 * 3600              # hueco de fin de semana
+    g = scan.diagnostico_gaps(ts)
+    assert g["mediana_seg"] == 3600
+    assert g["huecos_grandes"] == 3   # 3 huecos entre 4 semanas
+
+
+def test_resumir_marca_lo_que_sobrevive():
+    filas = [{"p_valor": 0.0001, "sharpe": 2.0}, {"p_valor": 0.5, "sharpe": 0.1},
+             {"p_valor": 0.8, "sharpe": -0.3}, {"p_valor": 0.9, "sharpe": -0.5}]
+    r = scan.resumir(filas)
+    assert r["n"] == 4 and r["positivos"] == 2
+    assert r["sobreviven_bonferroni"] == 1
+    assert filas[0]["sobrevive_bonferroni"] is True
+    assert filas[1]["sobrevive_bonferroni"] is False
+    assert abs(r["esperados_por_azar"] - 0.2) < 1e-9
 
 
 def main() -> int:
