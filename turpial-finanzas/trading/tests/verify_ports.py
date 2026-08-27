@@ -20,7 +20,6 @@ Uso:  python trading/tests/verify_ports.py
 """
 from __future__ import annotations
 
-import math
 import os
 import re
 import shutil
