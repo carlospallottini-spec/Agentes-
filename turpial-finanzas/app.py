@@ -16,6 +16,7 @@ from connectors import market
 from dashboard.render import render_html, write_dashboard
 from oracle import scheduler, store, watchlist
 from oracle.earnings import estimate_next_earnings
+from quant import engine as quant_engine
 from connectors import sec_edgar as sec
 
 app = FastAPI(title="Turpial Finanzas", description="Plataforma de inversión todo-en-uno")
@@ -85,6 +86,42 @@ def api_chat(payload: dict = Body(...)) -> JSONResponse:
         return JSONResponse(content=chat(messages))
     except RuntimeError as e:  # típicamente falta ANTHROPIC_API_KEY
         raise HTTPException(status_code=503, detail=str(e))
+
+
+# ------------------------------------------------------------ Cuantitativo
+@app.get("/api/quant/par/{sym_a}/{sym_b}")
+def api_quant_par(sym_a: str, sym_b: str, rango: str = Query("5y"),
+                  ventana: int = Query(250, ge=60, le=1000),
+                  entrada: float = Query(2.0, ge=0.1, le=6.0),
+                  salida: float = Query(0.5, ge=0.0, le=3.0),
+                  stop: float = Query(3.5, ge=0.5, le=10.0),
+                  costo_bps: float = Query(5.0, ge=0.0, le=200.0),
+                  backtest: bool = Query(True)) -> JSONResponse:
+    """Cointegración de dos activos + OU sobre el spread (arbitraje estadístico)."""
+    rep = quant_engine.analyze_pair(sym_a, sym_b, rng=rango, ventana=ventana,
+                                    entrada=entrada, salida=salida, stop=stop,
+                                    cost_bps=costo_bps, con_backtest=backtest)
+    if not rep.get("ok"):
+        raise HTTPException(status_code=404, detail=rep.get("motivo", "Par no analizable."))
+    return JSONResponse(content=rep)
+
+
+@app.get("/api/quant/{symbol}")
+def api_quant(symbol: str, rango: str = Query("5y"),
+              ventana: int = Query(250, ge=60, le=1000),
+              entrada: float = Query(1.5, ge=0.1, le=6.0),
+              salida: float = Query(0.5, ge=0.0, le=3.0),
+              stop: float = Query(3.0, ge=0.5, le=10.0),
+              costo_bps: float = Query(5.0, ge=0.0, le=200.0),
+              regimen: bool = Query(True),
+              backtest: bool = Query(True)) -> JSONResponse:
+    """Ornstein-Uhlenbeck + régimen de Markov + backtest walk-forward de un activo."""
+    rep = quant_engine.analyze(symbol, rng=rango, ventana=ventana, entrada=entrada,
+                               salida=salida, stop=stop, cost_bps=costo_bps,
+                               usar_regimen=regimen, con_backtest=backtest)
+    if not rep.get("ok"):
+        raise HTTPException(status_code=404, detail=rep.get("motivo", "Activo no analizable."))
+    return JSONResponse(content=rep)
 
 
 # --------------------------------------------------------------- Risk Score

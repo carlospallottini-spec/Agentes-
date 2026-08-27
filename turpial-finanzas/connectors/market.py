@@ -37,6 +37,9 @@ _CLASS = {
     "OPTION": "Opción",
 }
 
+# Intervalos de velas aceptados por Yahoo (los que usamos).
+_INTERVALS = {"5m", "15m", "30m", "1h", "1d", "1wk", "1mo"}
+
 # Rangos válidos -> intervalo de velas adecuado.
 _RANGE_INTERVAL = {
     "1d": "5m", "5d": "30m", "1mo": "1d", "6mo": "1d",
@@ -106,10 +109,15 @@ def quote(symbol: str) -> dict | None:
     }
 
 
-def history(symbol: str, rng: str = "1y") -> dict:
-    """Serie temporal para graficar. Devuelve {symbol, range, points:[{t, c}]}."""
+def history(symbol: str, rng: str = "1y", interval: str | None = None) -> dict:
+    """Serie temporal para graficar. Devuelve {symbol, range, points:[{t, c}]}.
+
+    `interval` fuerza la granularidad de las velas (ej. "1d" sobre un rango de 5y, que
+    por defecto vendría semanal). Lo usa el motor cuantitativo, que necesita muchos
+    puntos diarios para calibrar el proceso de Ornstein-Uhlenbeck.
+    """
     rng = rng if rng in _RANGE_INTERVAL else "1y"
-    interval = _RANGE_INTERVAL[rng]
+    interval = interval if interval in _INTERVALS else _RANGE_INTERVAL[rng]
     try:
         with _client() as c:
             data = c.get(_CHART.format(sym=symbol),

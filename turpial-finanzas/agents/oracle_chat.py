@@ -24,6 +24,13 @@ Cómo trabajás:
   watchlist) en vez de inventar. Si una herramienta no devuelve datos, decilo con honestidad.
 - Sé DIDÁCTICO: explicá cada término técnico la primera vez que aparece, en paréntesis y simple.
 - Cuando el inversor menciona un activo por nombre, primero buscá el símbolo con `buscar_simbolo`.
+- Para preguntas de reversión a la media, half-life, spreads o "¿esto vuelve a su precio
+  normal?", usá `analisis_cuantitativo` (Ornstein-Uhlenbeck + régimen de Markov) o
+  `pares_cointegrados`. Explicá el half-life en criollo: los días que el modelo espera para
+  que se cierre la MITAD de la desviación. Y respetá los tests: si Dickey-Fuller o
+  Engle-Granger no rechazan, decí que NO hay reversión estadísticamente sostenible, aunque
+  el número de half-life exista. Los backtests son walk-forward y con costos, pero el pasado
+  no garantiza nada: decilo.
 - El Risk Score (`risk_score_accion`) solo aplica a acciones de empresas con filings en la SEC
   (EE.UU.). Para crypto, Forex o commodities no hay fundamentales: ofrecé precio, contexto y
   límites honestos en vez de un score.
@@ -80,6 +87,41 @@ TOOLS = [
             "type": "object",
             "properties": {"ticker": {"type": "string", "description": "Ticker de la acción, ej. AAPL."}},
             "required": ["ticker"],
+        },
+    },
+    {
+        "name": "analisis_cuantitativo",
+        "description": "Análisis estocástico de un activo: calibra un proceso de "
+                       "Ornstein-Uhlenbeck sobre el log-precio (velocidad de reversión θ, "
+                       "nivel de equilibrio μ, HALF-LIFE, z-score), testea estacionariedad "
+                       "con Dickey-Fuller, estima el régimen de mercado con una cadena de "
+                       "Markov y corre un backtest walk-forward de la estrategia de "
+                       "reversión a la media. Usalo para preguntas sobre si un precio "
+                       "vuelve a su media y en cuánto tiempo.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Símbolo Yahoo, ej. KO, BTC-USD."},
+                "rango": {"type": "string", "enum": ["1y", "5y", "max"],
+                          "description": "Historial a usar (default 5y)."},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "pares_cointegrados",
+        "description": "Testea si dos activos están cointegrados (Engle-Granger) y modela "
+                       "el spread como Ornstein-Uhlenbeck: hedge ratio β, half-life del "
+                       "spread, z-score actual y backtest del arbitraje estadístico. Es el "
+                       "uso correcto del OU cuando el precio suelto no revierte.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol_a": {"type": "string"},
+                "symbol_b": {"type": "string"},
+                "rango": {"type": "string", "enum": ["1y", "5y", "max"]},
+            },
+            "required": ["symbol_a", "symbol_b"],
         },
     },
     {
@@ -154,6 +196,42 @@ def _execute(name: str, args: dict) -> str:
             "pilares": {k: round(v["score"], 1) if v["score"] is not None else None
                         for k, v in sc["pillars"].items()},
             "precio": d["price"], "insiders": d["insiders"].get("senal"),
+        })
+    if name == "analisis_cuantitativo":
+        from quant import engine
+        r = engine.analyze(args["symbol"], rng=args.get("rango", "5y"))
+        if not r.get("ok"):
+            return _dump({"error": r.get("motivo")})
+        mk = r.get("markov", {})
+        bt = r.get("backtest", {})
+        return _dump({
+            "symbol": r["symbol"], "n_cierres": r["n_cierres"],
+            "precio_actual": r["precio_actual"],
+            "ou": r["ou"],
+            "hitos_half_life": (r.get("curva_decaimiento") or {}).get("hitos"),
+            "prob_reversion": r.get("prob_reversion"),
+            "regimen": {k: mk.get(k) for k in
+                        ("regimen_actual", "persistencia_actual", "prob_siguiente",
+                         "duracion_media", "estacionaria", "test_memoria")} if mk.get("ok") else None,
+            "backtest": {"metricas": {k: v for k, v in bt["metricas"].items() if k != "curva"},
+                         "buy_and_hold": bt["buy_and_hold"]} if bt.get("ok") else None,
+            "diagnostico": r["diagnostico"],
+        })
+    if name == "pares_cointegrados":
+        from quant import engine
+        r = engine.analyze_pair(args["symbol_a"], args["symbol_b"], rng=args.get("rango", "5y"))
+        if not r.get("ok"):
+            return _dump({"error": r.get("motivo")})
+        bt = r.get("backtest", {})
+        return _dump({
+            "par": r["par"], "n": r["n_fechas_comunes"],
+            "hedge_ratio_beta": r["hedge_ratio_beta"],
+            "r2_cointegracion": r["r2_cointegracion"],
+            "correlacion_logs": r["correlacion_logs"],
+            "ou_spread": r["ou"], "engle_granger": r["engle_granger"],
+            "backtest": {k: v for k, v in bt["metricas"].items() if k != "curva"}
+                        if bt.get("ok") else None,
+            "veredicto": r["veredicto"],
         })
     if name == "ver_watchlist":
         return _dump(watchlist.list_items())

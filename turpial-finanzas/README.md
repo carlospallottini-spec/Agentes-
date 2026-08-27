@@ -20,6 +20,10 @@ Todo se sirve desde una sola app (FastAPI + una SPA sin dependencias externas).
   símbolos, cotiza, trae historiales, calcula Risk Scores y maneja tu watchlist en vivo.
   Explica cada término técnico y es honesto sobre lo que no se puede saber.
 - 🧮 **Risk Score** de acciones (framework de 3 pilares, abajo).
+- 📐 **Motor cuantitativo**: calibra un proceso de **Ornstein-Uhlenbeck** sobre el precio
+  (fuerza restauradora, **half-life** y curva de decaimiento), estima **regímenes de
+  mercado con cadenas de Markov**, testea **cointegración de pares** y corre backtests
+  walk-forward de la estrategia de reversión a la media.
 
 ## El framework de Risk Score
 
@@ -36,6 +40,53 @@ Tres pilares, escala **0-100, mayor puntaje = menor riesgo**:
 
 El score se calcula de forma **determinística** desde los datos primarios; el agente Claude
 (`claude-opus-4-7`) agrega narrativa, ajusta badges, expone trade-offs y los límites del análisis.
+
+## El motor cuantitativo (Ornstein-Uhlenbeck + Markov)
+
+El precio se modela con la ecuación diferencial estocástica
+
+```
+dX = θ·(μ − X)·dt + σ·dW
+```
+
+donde `θ·(μ − X)·dt` es una **fuerza restauradora** tipo resorte: cuanto más lejos está el
+precio de su nivel de equilibrio μ, más fuerte tira de vuelta. Tomando esperanza queda un
+decaimiento exponencial de la desviación,
+
+```
+E[X_t | X_0] = μ + (X_0 − μ)·e^(−θt)        half-life = ln(2)/θ
+```
+
+y el **half-life** es lo que hace operable al modelo: dice en cuántos días se cierra la
+**mitad** de la desviación. La plataforma dibuja esa curva de decaimiento con su banda de
+±1σ y las marcas de 1, 2 y 3 half-lives (50 % → 25 % → 12,5 %).
+
+| Pieza | Qué hace |
+|---|---|
+| `quant/ou.py` | Calibra θ, μ, σ por la discretización exacta AR(1); half-life, z-score, curva de decaimiento y test de Dickey-Fuller |
+| `quant/markov.py` | Regímenes bajista/lateral/alcista, matriz de transición, distribución estacionaria π, duración de rachas y χ² de memoria |
+| `quant/strategies.py` | Reglas de entrada/salida por z-score, corte temporal en múltiplos del half-life y filtro de régimen |
+| `quant/backtest.py` | Backtest **walk-forward** (sin look-ahead) con costos, y métricas contra buy & hold |
+| `quant/pairs.py` | Cointegración de Engle-Granger, hedge ratio β y OU sobre el spread |
+| `quant/engine.py` | Orquesta todo con datos reales de mercado |
+
+**Lo importante es lo que el motor se niega a afirmar.** Toda serie finita produce un
+half-life; eso no prueba que haya reversión. Cada resultado viene con su test —
+Dickey-Fuller para un activo suelto, Engle-Granger para un par— y si no rechaza la hipótesis
+de raíz unitaria, el reporte dice que ese half-life es un artefacto de la muestra. Lo mismo
+con el régimen: si el χ² no encuentra memoria markoviana, el filtro se desactiva solo.
+
+La matemática completa, con derivaciones y limitaciones, está en
+[`docs/quant.md`](./docs/quant.md).
+
+```bash
+python turpial.py --quant KO      # OU + Markov + backtest de un activo
+python turpial.py --par EWA EWC   # cointegración y OU sobre el spread
+python tests/test_quant.py        # 22 tests contra procesos simulados, sin red
+```
+
+En la SPA, el botón **🧮 Quant** de cualquier activo abre el panel con los parámetros
+calibrados, la curva de decaimiento, la matriz de transición y el backtest.
 
 ## Cómo se usa
 
@@ -55,6 +106,8 @@ También hay CLI para análisis y cadencias:
 python turpial.py AAPL                 # dashboard de Risk Score (HTML autocontenido)
 python turpial.py --cadence diario     # corre una cadencia de la watchlist del oráculo
 python turpial.py --pre-earnings       # analiza lo que reporta pronto
+python turpial.py --quant KO           # análisis estocástico (OU, half-life, Markov)
+python turpial.py --par EWA EWC        # cointegración de un par
 ```
 
 ## API
@@ -67,6 +120,8 @@ python turpial.py --pre-earnings       # analiza lo que reporta pronto
 | `GET /api/history/{symbol}?range=` | Serie histórica para graficar |
 | `GET/POST/DELETE /api/watchlist` | Lista de seguimiento del inversor |
 | `POST /api/chat` | El agente IA (body: `{"messages":[...]}`) |
+| `GET /api/quant/{symbol}` | OU (θ, μ, half-life, curva de decaimiento) + Markov + backtest |
+| `GET /api/quant/par/{a}/{b}` | Cointegración de Engle-Granger + OU sobre el spread |
 | `GET /api/score/{ticker}` | Risk Score en JSON |
 | `GET /api/earnings/{ticker}` | Próxima fecha de earnings (estimada) |
 | `GET /analyze/{ticker}` | Dashboard de Risk Score (HTML autocontenido) |

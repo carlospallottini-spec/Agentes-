@@ -107,6 +107,23 @@
   table.opt tr.itm td{background:var(--panel2)}
   table.opt td.strike{font-weight:700;text-align:left}
   .refnote{font-size:10.5px;color:var(--muted);margin-top:6px}
+  /* Panel cuantitativo */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:10px 0}
+  .kpi{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  .kpi .k{font-size:10.5px;color:var(--muted);letter-spacing:.3px}
+  .kpi .v{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px}
+  .kpi .h{font-size:10.5px;color:var(--muted);margin-top:1px}
+  .verdict{border-left:3px solid var(--accent);background:var(--panel2);border-radius:0 10px 10px 0;
+    padding:10px 12px;font-size:12.5px;line-height:1.6;margin-top:10px}
+  .verdict.warn{border-left-color:#e8b64c}
+  .badge{font-size:10.5px;border-radius:999px;padding:2px 8px;border:1px solid var(--line)}
+  .badge.ok{color:var(--accent);border-color:var(--accent)}
+  .badge.no{color:#e8b64c;border-color:#e8b64c}
+  .qgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.qgrid{grid-template-columns:1fr}}
+  .pairbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
+  .pairbar input{background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+    color:var(--fg);padding:8px 10px;font-size:13px;width:150px}
   footer{margin-top:18px;font-size:11px;color:var(--muted);text-align:center;line-height:1.7}
 </style>
 </head>
@@ -163,6 +180,7 @@
           <button class="act" id="d-watch">☆ Seguir</button>
           <button class="ghost hidden" id="d-risk">📊 Generar Risk Score</button>
           <button class="ghost hidden" id="d-opts">⛓️ Opciones</button>
+          <button class="ghost" id="d-quant">🧮 Quant (OU · Markov)</button>
           <button class="ghost" id="d-ask">🤖 Preguntar al agente</button>
         </div>
         <div class="didactic" id="d-note" style="margin-top:12px"></div>
@@ -176,6 +194,22 @@
           <div class="didactic" style="margin:10px 0">Una <b>opción</b> da el derecho (no la obligación) de comprar (<b>call</b>) o vender (<b>put</b>) a un precio fijo (<b>strike</b>) hasta un <b>vencimiento</b>. La <b>IV</b> (volatilidad implícita) es cuánta variación espera el mercado.</div>
           <div class="ranges" id="opts-exps" style="overflow-x:auto"></div>
           <div id="opts-tables"><div class="empty">Cargando opciones…</div></div>
+        </div>
+
+        <!-- Panel cuantitativo: Ornstein-Uhlenbeck + Markov + backtest -->
+        <div id="quant-panel" class="hidden" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <h2 style="margin:0">🧮 Análisis estocástico</h2>
+            <span class="sub" id="q-meta"></span>
+          </div>
+          <div class="didactic" style="margin:10px 0">
+            El proceso de <b>Ornstein-Uhlenbeck</b> modela un precio atado a un nivel de equilibrio
+            por una <b>fuerza restauradora</b>, como un resorte:
+            <code>dX = θ·(μ − X)·dt + σ·dW</code>. Cuanto más lejos está del equilibrio μ, más fuerte
+            tira de vuelta. El <b>half-life</b> = ln(2)/θ es el tiempo que tarda en cerrarse la
+            <b>mitad</b> de la desviación. El <b>z-score</b> mide cuánto está estirado el resorte hoy.
+          </div>
+          <div id="q-body"><div class="empty">Calculando…</div></div>
         </div>
       </section>
     </div>
@@ -197,7 +231,8 @@
   </div>
 
   <footer>
-    Datos de mercado vía Yahoo Finance · fundamentales e insiders vía SEC EDGAR.
+    Datos de mercado vía Yahoo Finance · fundamentales e insiders vía SEC EDGAR ·
+    modelos cuantitativos (Ornstein-Uhlenbeck, Markov) calculados en el servidor.
     Turpial Finanzas es una herramienta de investigación, <b>no</b> asesoramiento de inversión.
   </footer>
 </div>
@@ -311,6 +346,7 @@ async function showDetail(symbol){
   $("#d-risk").classList.toggle("hidden", !detailIsStock);
   $("#d-opts").classList.toggle("hidden", !hasOptions);
   $("#opts-panel").classList.add("hidden");  // se oculta hasta que lo pidan
+  $("#quant-panel").classList.add("hidden");
   $("#d-note").textContent = detailIsStock
     ? "Es una acción con filings en la SEC: podés generar el Risk Score de 3 pilares (valuación, salud financiera, crecimiento)."
     : "Para "+q.asset_class.toLowerCase()+" no hay fundamentales contables: el análisis se basa en precio, tendencia y contexto. Preguntale al agente IA por más.";
@@ -321,6 +357,8 @@ async function showDetail(symbol){
   $("#d-risk").onclick = () => window.open("/analyze/"+encodeURIComponent(q.symbol.replace(/\..*/,"")), "_blank");
   $("#d-opts").onclick = () => { const p=$("#opts-panel"); p.classList.toggle("hidden");
       if(!p.classList.contains("hidden")) loadOptions(q.symbol); };
+  $("#d-quant").onclick = () => { const p=$("#quant-panel"); p.classList.toggle("hidden");
+      if(!p.classList.contains("hidden")) loadQuant(q.symbol); };
   $("#d-ask").onclick = () => { switchTab("agente"); $("#chatInput").value =
       "Analizá "+q.symbol+" ("+q.name+"). ¿Qué debería mirar y cuáles son los riesgos?"; $("#chatInput").focus(); };
 }
@@ -372,6 +410,211 @@ function optTable(kind, rows){
   if(!rows.length){ const tr=document.createElement("tr"); tr.innerHTML='<td colspan="4" style="text-align:center;color:var(--muted)">sin datos</td>'; t.appendChild(tr); }
   return t;
 }
+/* ---------------- Panel cuantitativo: OU + Markov + backtest ---------------- */
+function kpi(k, v, h){
+  return '<div class="kpi"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+
+         (h?('<div class="h">'+h+'</div>'):'')+'</div>';
+}
+function num(v, d){ return v==null ? "—" : Number(v).toFixed(d==null?2:d); }
+function pct(v, d){ return v==null ? "—" : Number(v).toFixed(d==null?2:d)+"%"; }
+
+async function loadQuant(symbol){
+  $("#q-meta").textContent = "";
+  $("#q-body").innerHTML = '<div class="empty">Calibrando el proceso… (usa 5 años de cierres diarios)</div>';
+  let r=null, err=null;
+  try{ r = await api("/api/quant/"+encodeURIComponent(symbol)+"?rango=5y"); }
+  catch(e){ err = (e && e.detail) || "No se pudo analizar este activo."; }
+  if(!r){ $("#q-body").innerHTML = '<div class="empty">'+err+'</div>'; return; }
+  renderQuant(r);
+}
+
+function renderQuant(r){
+  const ou=r.ou, mk=r.markov, bt=r.backtest, cur=r.curva_decaimiento;
+  $("#q-meta").textContent = r.symbol+" · "+r.n_cierres+" cierres diarios · rango "+r.rango;
+  let h = "";
+
+  // --- Parámetros del OU ---
+  if(ou.ok){
+    const est = ou.estacionaria_5pct
+      ? '<span class="badge ok">estacionaria al 5%</span>'
+      : '<span class="badge no">NO estacionaria al 5%</span>';
+    h += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
+         '<b>Parámetros calibrados</b> '+est+
+         '<span class="sub">Dickey-Fuller '+num(ou.df_stat)+' vs '+ou.df_criticos["5%"]+' (crítico 5%)</span></div>';
+    h += '<div class="kpis">'+
+      kpi("Half-life", num(ou.half_life_dias,1)+" d", "ln(2)/θ")+
+      kpi("θ reversión", num(ou.theta,5), "por día")+
+      kpi("μ equilibrio", num(ou.mu_precio), "precio de equilibrio")+
+      kpi("z-score", (ou.z>0?"+":"")+num(ou.z), ou.z>0?"caro vs μ":"barato vs μ")+
+      kpi("σ_eq", num(ou.sigma_eq,4), "dispersión estacionaria")+
+      kpi("R² AR(1)", num(ou.r2_ar1,3), "ajuste de la regresión")+
+      '</div>';
+  }else{
+    h += '<div class="verdict warn"><b>Sin reversión estimable.</b> '+(ou.motivo||"")+'</div>';
+  }
+
+  // --- Curva de decaimiento ---
+  if(cur && cur.puntos){
+    h += '<h2 style="margin:14px 0 4px;font-size:14px">Curva de decaimiento del half-life</h2>'+
+         '<div class="sub" style="margin-bottom:6px">Trayectoria esperada E[X<sub>t</sub>] = μ + (X<sub>0</sub>−μ)·e<sup>−θt</sup>, con banda de ±1σ condicional.</div>'+
+         '<canvas class="chart" id="q-chart" width="640" height="240"></canvas>';
+    h += '<table class="opt" style="margin-top:8px"><tr><th style="text-align:left">Hito</th><th>Días</th>'+
+         '<th>Desvío restante</th><th>Precio esperado</th></tr>';
+    cur.hitos.forEach(x=>{
+      h += '<tr><td class="strike">'+x.half_lives+'× half-life</td><td>'+num(x.t,1)+'</td><td>'+
+           pct(x.desvio_restante_pct,1)+'</td><td>'+num(x.precio_esperado)+'</td></tr>';
+    });
+    h += '</table>';
+    if(r.prob_reversion && r.prob_reversion.ok){
+      h += '<div class="refnote">Probabilidad de estar del otro lado del equilibrio dentro de un half-life: <b>'+
+           pct(r.prob_reversion.prob_cruce_en_h*100,1)+'</b> (cota inferior de tocar μ).</div>';
+    }
+  }
+
+  h += '<div class="qgrid" style="margin-top:14px">';
+
+  // --- Markov ---
+  if(mk && mk.ok){
+    const t=mk.test_memoria;
+    h += '<div><h2 style="margin:0 0 4px;font-size:14px">Régimen de Markov</h2>'+
+         '<div class="sub" style="margin-bottom:6px">Estado hoy: <b>'+mk.regimen_actual+'</b> · persistencia '+
+         pct(mk.persistencia_actual*100,0)+' · racha media '+num(mk.duracion_media[mk.regimen_actual],1)+' barras</div>'+
+         '<table class="opt"><caption>Matriz de transición P (fila = hoy, columna = mañana)</caption>'+
+         '<tr><th style="text-align:left">hoy → mañana</th>'+mk.estados.map(e=>'<th>'+e+'</th>').join("")+'</tr>';
+    mk.estados.forEach((e,i)=>{
+      h += '<tr><td class="strike">'+e+'</td>'+mk.matriz[i].map((v,j)=>
+        '<td'+(i===j?' style="font-weight:700;color:var(--accent)"':'')+'>'+num(v,3)+'</td>').join("")+'</tr>';
+    });
+    h += '</table><div class="refnote">π de largo plazo: '+
+         mk.estados.map(e=>e+" "+pct(mk.estacionaria[e]*100,1)).join(" · ")+
+         '<br>χ² de memoria = '+num(t.chi2,1)+' (gl '+t.df+', p='+num(t.p_valor,4)+') → '+
+         (t.hay_memoria_5pct ? '<b>hay memoria markoviana</b>: el filtro de régimen se aplica.'
+                             : 'sin memoria detectable: el filtro de régimen queda desactivado.')+'</div></div>';
+  }
+
+  // --- Backtest ---
+  if(bt && bt.ok){
+    const m=bt.metricas, b=bt.buy_and_hold;
+    const fila=(et,k,sg)=>'<tr><td class="strike">'+et+'</td><td>'+
+      (sg? (m[k]>0?"+":"")+num(m[k]) : num(m[k]))+'%</td><td>'+
+      (sg? (b[k]>0?"+":"")+num(b[k]) : num(b[k]))+'%</td></tr>';
+    h += '<div><h2 style="margin:0 0 4px;font-size:14px">Backtest walk-forward</h2>'+
+         '<div class="sub" style="margin-bottom:6px">'+bt.estrategia+' · ventana '+bt.parametros.ventana+
+         ' · z entrada '+bt.parametros.entrada_z+' / salida '+bt.parametros.salida_z+
+         ' / stop '+bt.parametros.stop_z+' · costo '+bt.parametros.costo_bps+' bps</div>'+
+         '<table class="opt"><tr><th style="text-align:left">Métrica</th><th>Estrategia</th><th>Buy &amp; hold</th></tr>'+
+         fila("Retorno total","retorno_total_pct",true)+
+         fila("CAGR","cagr_pct",true)+
+         fila("Vol anual","vol_anual_pct",false)+
+         fila("Max drawdown","max_drawdown_pct",false)+
+         '<tr><td class="strike">Sharpe</td><td>'+num(m.sharpe)+'</td><td>'+num(b.sharpe)+'</td></tr>'+
+         '</table>'+
+         '<div class="refnote">'+m.trades+' trades · exposición '+pct(m.exposicion_pct,1)+
+         ' · hit rate '+pct(m.hit_rate_pct,1)+' · señales bloqueadas por régimen: '+
+         bt["señales_bloqueadas_por_regimen"]+
+         '<br>En cada barra los parámetros se estiman sólo con la ventana anterior: sin mirar el futuro.</div></div>';
+  }else if(bt && bt.motivo){
+    h += '<div class="refnote">Backtest no disponible: '+bt.motivo+'</div>';
+  }
+  h += '</div>';
+
+  // --- Diagnóstico ---
+  const warn = !(ou.ok && ou.estacionaria_5pct);
+  h += '<div class="verdict'+(warn?' warn':'')+'">'+r.diagnostico+'</div>';
+
+  // --- Pares ---
+  h += '<h2 style="margin:16px 0 4px;font-size:14px">Par cointegrado</h2>'+
+       '<div class="sub">Un precio suelto casi nunca revierte, pero el <b>spread</b> de dos activos relacionados sí puede. '+
+       'Probá contra otro símbolo (ej. EWC para EWA, PEP para KO).</div>'+
+       '<div class="pairbar"><input id="q-pair-sym" placeholder="Símbolo del par" autocomplete="off">'+
+       '<button class="ghost" id="q-pair-go">Analizar par</button></div>'+
+       '<div id="q-pair"></div>';
+
+  $("#q-body").innerHTML = h;
+  if(cur && cur.puntos) drawDecay($("#q-chart"), cur);
+  $("#q-pair-go").onclick = () => loadPair(r.symbol, ($("#q-pair-sym").value||"").trim());
+  $("#q-pair-sym").addEventListener("keydown", e=>{ if(e.key==="Enter") $("#q-pair-go").click(); });
+}
+
+function drawDecay(canvas, cur){
+  if(!canvas) return;
+  const x=canvas.getContext("2d"), dpr=window.devicePixelRatio||1;
+  const cssW=canvas.parentElement.clientWidth-30; canvas.style.width=cssW+"px";
+  canvas.width=cssW*dpr; canvas.height=240*dpr; x.setTransform(dpr,0,0,dpr,0,0);
+  const W=cssW,H=240; x.clearRect(0,0,W,H);
+  const pts=cur.puntos;
+  const lo=Math.min(...pts.map(p=>p.precio_inf), cur.precio_equilibrio);
+  const hi=Math.max(...pts.map(p=>p.precio_sup), cur.precio_equilibrio);
+  const pad=50, base=H-24, top=14, pw=W-pad-14, ph=base-top, tmax=pts[pts.length-1].t||1;
+  const sx=t=>pad+pw*(t/tmax), sy=v=>base-ph*((v-lo)/((hi-lo)||1));
+
+  x.strokeStyle="#1e2a45"; x.fillStyle="#8a98b5"; x.font="11px sans-serif"; x.lineWidth=1;
+  for(let k=0;k<=3;k++){ const yy=top+ph*k/3, val=hi-(hi-lo)*k/3;
+    x.beginPath(); x.moveTo(pad,yy); x.lineTo(W-14,yy); x.stroke();
+    x.textAlign="right"; x.fillText(fmtNum(val), pad-6, yy+3); }
+
+  // banda ±1σ condicional
+  x.beginPath();
+  pts.forEach((p,i)=> i?x.lineTo(sx(p.t),sy(p.precio_sup)):x.moveTo(sx(p.t),sy(p.precio_sup)));
+  for(let i=pts.length-1;i>=0;i--) x.lineTo(sx(pts[i].t), sy(pts[i].precio_inf));
+  x.closePath(); x.fillStyle="#4da3ff22"; x.fill();
+
+  // nivel de equilibrio μ
+  x.save(); x.setLineDash([5,4]); x.strokeStyle="#8a98b5"; x.beginPath();
+  x.moveTo(pad, sy(cur.precio_equilibrio)); x.lineTo(W-14, sy(cur.precio_equilibrio)); x.stroke();
+  x.fillStyle="#8a98b5"; x.textAlign="left"; x.fillText("μ "+fmtNum(cur.precio_equilibrio), pad+4, sy(cur.precio_equilibrio)-4);
+  x.restore();
+
+  // marcas de half-lives
+  cur.hitos.forEach(hh=>{
+    if(hh.t>tmax) return;
+    x.save(); x.setLineDash([3,4]); x.strokeStyle="#e8b64c88"; x.beginPath();
+    x.moveTo(sx(hh.t), top); x.lineTo(sx(hh.t), base); x.stroke();
+    x.fillStyle="#e8b64c"; x.font="10px sans-serif";
+    // la última marca cae sobre el borde: se alinea hacia adentro para no cortarse
+    x.textAlign = sx(hh.t) > W-46 ? "right" : "center";
+    x.fillText(hh.half_lives+"× HL", Math.min(sx(hh.t)+4, W-4), top-2); x.restore();
+  });
+
+  // trayectoria esperada
+  x.beginPath(); x.lineWidth=2; x.strokeStyle="#4da3ff";
+  pts.forEach((p,i)=> i?x.lineTo(sx(p.t),sy(p.precio_esperado)):x.moveTo(sx(p.t),sy(p.precio_esperado)));
+  x.stroke();
+  x.fillStyle="#8a98b5"; x.font="11px sans-serif"; x.textAlign="center";
+  x.fillText("días hacia adelante →", pad+pw/2, H-6);
+}
+
+async function loadPair(a, b){
+  const host=$("#q-pair");
+  if(!b){ host.innerHTML='<div class="empty">Escribí un símbolo para comparar.</div>'; return; }
+  host.innerHTML='<div class="empty">Testeando cointegración de '+a+' vs '+b.toUpperCase()+'…</div>';
+  let r=null, err=null;
+  try{ r = await api("/api/quant/par/"+encodeURIComponent(a)+"/"+encodeURIComponent(b)+"?rango=5y"); }
+  catch(e){ err=(e&&e.detail)||"No se pudo analizar el par."; }
+  if(!r){ host.innerHTML='<div class="empty">'+err+'</div>'; return; }
+  const eg=r.engle_granger, o=r.ou;
+  const badge = eg.cointegrado_5pct ? '<span class="badge ok">cointegrado al 5%</span>'
+                                    : '<span class="badge no">no cointegrado</span>';
+  let h='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">'+
+        '<b>'+r.par+'</b> '+badge+'<span class="sub">Engle-Granger '+num(eg.estadistico)+
+        ' vs '+eg.criticos["5%"]+' (5%) · '+r.n_fechas_comunes+' fechas</span></div>';
+  h+='<div class="kpis">'+
+     kpi("Hedge ratio β", num(r.hedge_ratio_beta,3), "unidades de B por 1 de A")+
+     kpi("Half-life", o.ok?num(o.half_life_dias,1)+" d":"—", "del spread")+
+     kpi("z del spread", o.ok?((o.z>0?"+":"")+num(o.z)):"—",
+         !o.ok ? "" : (Math.abs(o.z)<1 ? "cerca del equilibrio"
+                       : (o.z>0?"vender A / comprar B":"comprar A / vender B")))+
+     kpi("R² cointegr.", num(r.r2_cointegracion,3), "correlación logs "+num(r.correlacion_logs,2))+
+     '</div>';
+  if(r.backtest && r.backtest.ok){
+    const m=r.backtest.metricas;
+    h+='<div class="refnote">Backtest del par: retorno '+pct(m.retorno_total_pct)+' · Sharpe '+num(m.sharpe)+
+       ' · maxDD '+pct(m.max_drawdown_pct)+' · '+m.trades+' trades · exposición '+pct(m.exposicion_pct,1)+'</div>';
+  }
+  h+='<div class="verdict'+(eg.cointegrado_5pct?'':' warn')+'">'+r.veredicto+'</div>';
+  host.innerHTML=h;
+}
+
 function buildRanges(){
   const host = $("#ranges"); host.innerHTML="";
   ["1d","5d","1mo","6mo","1y","5y","max"].forEach(r=>{
@@ -424,7 +667,8 @@ async function loadWatchlist(){
 /* ---------------- Agente IA (chat) ---------------- */
 const conversation = [];
 const SUGGEST = ["¿Cómo viene Bitcoin esta semana?","Riesgo de NVDA","Comparame oro vs petróleo este año",
-  "¿Qué es un ETF?","Agregá AAPL a mi watchlist"];
+  "¿Qué es un ETF?","¿Cuál es el half-life de reversión de KO?",
+  "¿EWA y EWC están cointegrados?","Agregá AAPL a mi watchlist"];
 function buildSuggest(){
   const host=$("#suggest"); host.innerHTML="";
   SUGGEST.forEach(s=>{ const el=document.createElement("div"); el.className="sg"; el.textContent=s;

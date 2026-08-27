@@ -1,15 +1,17 @@
-# Agentes de pastelería
+# Agentes
 
-Dos asistentes virtuales independientes para pastelerías, que responden mensajes de **WhatsApp** e **Instagram** usando Claude (`claude-opus-4-7`).
+Proyectos independientes de agentes: dos asistentes de pastelería que responden **WhatsApp**
+e **Instagram** con Claude, y una plataforma de inversión con motor cuantitativo propio.
 
-Cada agente vive en su propia carpeta — código, menú, pedidos y configuración son independientes.
+Cada proyecto vive en su propia carpeta — código, datos y configuración son independientes.
 
 | Carpeta | Negocio | Detalle |
 |---|---|---|
 | [`obrador-pasteleria/`](./obrador-pasteleria) | Obrador de Pastelería | Pastelería argentina clásica (tortas, individuales, panadería dulce). 24 hs de anticipación para tortas. |
 | [`selva-negra/`](./selva-negra) | Selva Negra Pastelería | Pastelería alemana / centroeuropea (Selva Negra, Sachertorte, Apfelstrudel, Stollen). 48 hs para tortas Selva Negra y Sachertorte. |
+| [`turpial-finanzas/`](./turpial-finanzas) | Turpial Finanzas | Plataforma de inversión multi-activo: Risk Score de acciones, agente IA con datos reales y **motor cuantitativo** (Ornstein-Uhlenbeck, half-life, cadenas de Markov, cointegración de pares y backtest walk-forward). |
 
-## Capacidades de cada agente
+## Capacidades de cada agente de pastelería
 
 - **Responde mensajes generales**: productos, horarios, ubicación, formas de pago.
 - **Muestra el menú** filtrado por categoría o completo.
@@ -46,6 +48,13 @@ Resumen:
 2. **Cuentas Meta**: cada bakery necesita su propia app en Meta Developers, con su número de WhatsApp Business e Instagram Business conectado a una página de Facebook.
 3. **Variables de entorno**: pegar las claves (Anthropic + Meta) en el panel de variables del hosting.
 4. **Webhooks**: registrar `https://<url-del-servicio>/webhook/whatsapp` y `https://<url-del-servicio>/webhook/instagram` en Meta, usando un `META_VERIFY_TOKEN` que vos elijas.
+
+## Turpial Finanzas
+
+La plataforma de inversión tiene su propio README con el detalle de la arquitectura, la API
+y el motor cuantitativo: [`turpial-finanzas/README.md`](./turpial-finanzas/README.md), y la
+matemática de los modelos estocásticos en
+[`turpial-finanzas/docs/quant.md`](./turpial-finanzas/docs/quant.md).
 
 ## Sobre TikTok
 
