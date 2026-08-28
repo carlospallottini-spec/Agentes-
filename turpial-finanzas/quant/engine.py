@@ -6,6 +6,7 @@ serializable a JSON, para que lo consuman igual la API, la SPA, el CLI y el agen
 from __future__ import annotations
 
 import math
+from datetime import datetime, timezone
 
 from connectors import market
 from quant import backtest, markov, ou, pairs
@@ -13,11 +14,22 @@ from quant import backtest, markov, ou, pairs
 RANGO_DEFECTO = "5y"
 
 
+# Rangos en años -> días de calendario a pedir.
+_ANIOS = {"6mo": 183, "1y": 365, "2y": 730, "3y": 1095, "5y": 1825, "7y": 2555,
+          "10y": 3650, "15y": 5475, "20y": 7300, "max": 10950}
+
+
 def closes(symbol: str, rng: str = RANGO_DEFECTO) -> dict:
-    """Cierres diarios de cualquier activo. Fuerza velas diarias aun en rangos largos."""
-    h = market.history(symbol, rng, interval="1d")
-    pts = h.get("points", [])
-    return {"symbol": h.get("symbol", symbol.upper()), "rango": rng,
+    """Cierres diarios de cualquier activo, pedidos por timestamps.
+
+    Se usa `velas()` en vez de `history()` porque los rangos con nombre degradan la
+    granularidad en histórico largo: `range=max` con `interval=1d` devuelve velas
+    MENSUALES. Pidiendo por días se obtienen las diarias hasta donde llegue el feed.
+    """
+    dias = _ANIOS.get(rng, _ANIOS[RANGO_DEFECTO])
+    h = market.velas(symbol, "1d", dias)
+    pts = [p for p in h.get("points", []) if p.get("c") and p["c"] > 0]
+    return {"symbol": h.get("symbol", symbol.upper()), "rango": rng, "dias": dias,
             "t": [p["t"] for p in pts], "c": [p["c"] for p in pts]}
 
 
@@ -147,25 +159,76 @@ def analyze_pair(sym_a: str, sym_b: str, rng: str = RANGO_DEFECTO, ventana: int 
     if not rep.get("ok"):
         return rep
     rep["n_fechas_comunes"] = len(ca)
+    rep["sincronia"] = sincronia(a, b)
+    hl = rep["ou"].get("half_life_dias")
+    # Un símbolo que empieza con "^" es un ÍNDICE: se puede calcular, no comprar. Un par
+    # con una pata así puede dar cointegración perfecta y no ser operable ni en teoría.
+    rep["pata_no_operable"] = sym_a.startswith("^") or sym_b.startswith("^")
+    rep["sospecha_artefacto"] = bool(
+        rep["pata_no_operable"]
+        or not rep["sincronia"]["sincronicas"]
+        or (hl is not None and hl < 3.0))
     rep["rango"] = rng
     rep["desde"] = fechas[0]
     rep["hasta"] = fechas[-1]
     if con_backtest:
         bt = pairs.walk_forward(ca, cb, ventana=ventana, entrada=entrada, salida=salida,
-                                stop=stop, cost_bps=cost_bps)
+                                stop=stop, cost_bps=cost_bps, fechas=fechas)
         if bt.get("ok"):
             bt["metricas"].pop("curva", None)
         rep["backtest"] = bt
     return rep
 
 
+def _hora_modal(timestamps: list[int]) -> str:
+    """Hora UTC más frecuente del sello de las velas (identifica la sesión)."""
+    from collections import Counter
+    if not timestamps:
+        return "?"
+    horas = Counter(datetime.fromtimestamp(t, tz=timezone.utc).strftime("%H:%M")
+                    for t in timestamps[-500:])
+    return horas.most_common(1)[0][0]
+
+
+def sincronia(a: dict, b: dict) -> dict:
+    """¿Las dos series cierran en el mismo momento?
+
+    Es el chequeo que separa un spread real de un artefacto. Los futuros de metales
+    liquidan a las 13:30 ET y los ETFs a las 16:00 ET: el "spread" entre el cierre de
+    GC=F y el de GLD contiene 2.5 horas de movimiento del oro que el futuro no vio, y
+    ese desfase revierte solo al día siguiente. Da cointegración altísima y un half-life
+    de 1-2 días — o sea, del orden de UNA barra — y no se puede operar, porque no se
+    puede comprar y vender en dos momentos distintos del mismo instante.
+
+    Regla práctica: si las series no son sincrónicas, o si el half-life es del orden de
+    una o dos barras, el resultado es del calendario y no del mercado.
+    """
+    ha, hb = _hora_modal(a["t"]), _hora_modal(b["t"])
+    return {"hora_a": ha, "hora_b": hb, "sincronicas": ha == hb}
+
+
 def _alinear(a: dict, b: dict) -> tuple[list[float], list[float], list[int]]:
-    """Intersecta dos series por timestamp: sin fechas comunes no hay spread válido."""
-    mb = dict(zip(b["t"], b["c"]))
+    """Intersecta dos series diarias por FECHA de calendario (UTC), no por timestamp.
+
+    Los futuros, los ETFs y los índices extranjeros estampan la vela diaria a horas
+    distintas: un futuro cierra a las 21:00 UTC y un ETF a las 20:00, así que
+    intersectar por timestamp exacto devuelve casi nada. Comparar GC=F con GLD daba
+    20 fechas en común en vez de 2500. Se agrupa por día y se toma el último cierre.
+    """
+    def por_dia(serie: dict) -> dict[str, tuple[int, float]]:
+        out: dict[str, tuple[int, float]] = {}
+        for t, c in zip(serie["t"], serie["c"]):
+            dia = datetime.fromtimestamp(t, tz=timezone.utc).date().isoformat()
+            if dia not in out or t >= out[dia][0]:
+                out[dia] = (t, c)
+        return out
+
+    ma, mb = por_dia(a), por_dia(b)
     ca, cb, ts = [], [], []
-    for t, c in zip(a["t"], a["c"]):
-        if t in mb:
-            ca.append(c)
-            cb.append(mb[t])
-            ts.append(t)
+    for dia in sorted(set(ma) & set(mb)):
+        ta, va = ma[dia]
+        _, vb = mb[dia]
+        ca.append(va)
+        cb.append(vb)
+        ts.append(ta)
     return ca, cb, ts

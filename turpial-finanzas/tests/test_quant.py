@@ -413,11 +413,27 @@ def test_nulo_por_permutacion_esta_centrado_en_cero():
 
 def test_momentum_alinea_por_fecha():
     """Sin fechas comunes no hay cartera: la intersección tiene que ser exacta."""
-    series = {"A": [{"t": 1, "c": 10.0}, {"t": 2, "c": 11.0}, {"t": 3, "c": 12.0}],
-              "B": [{"t": 2, "c": 20.0}, {"t": 3, "c": 21.0}, {"t": 4, "c": 22.0}]}
+    dia = 86400
+    series = {"A": [{"t": dia, "c": 10.0}, {"t": 2 * dia, "c": 11.0}, {"t": 3 * dia, "c": 12.0}],
+              "B": [{"t": 2 * dia, "c": 20.0}, {"t": 3 * dia, "c": 21.0}, {"t": 4 * dia, "c": 22.0}]}
     fechas, precios = momentum.alinear(series)
-    assert fechas == [2, 3]
+    assert len(fechas) == 2
     assert precios["A"] == [11.0, 12.0] and precios["B"] == [20.0, 21.0]
+
+
+def test_alineacion_tolera_horas_de_cierre_distintas():
+    """Un futuro cierra a las 21:00 UTC y un ETF a las 20:00: mismo día, distinto sello.
+
+    Antes se intersectaba por timestamp exacto y comparar GC=F con GLD devolvía 20 fechas
+    en común en vez de 2500. La alineación tiene que ser por fecha de calendario.
+    """
+    dia = 86400
+    fut = [{"t": i * dia + 21 * 3600, "c": 100.0 + i} for i in range(1, 6)]
+    etf = [{"t": i * dia + 20 * 3600, "c": 50.0 + i} for i in range(1, 6)]
+    fechas, precios = momentum.alinear({"FUT": fut, "ETF": etf})
+    assert len(fechas) == 5
+    assert precios["FUT"] == [101.0, 102.0, 103.0, 104.0, 105.0]
+    assert precios["ETF"] == [51.0, 52.0, 53.0, 54.0, 55.0]
 
 
 def test_momentum_costos_reducen_retorno():

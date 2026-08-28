@@ -223,6 +223,114 @@ Esto es la hipótesis más prometedora de todo el proyecto, y sigue siendo **una
 no un resultado. Si alguien la operara con estos datos, estaría apostando a un patrón que
 en cuatro años de muestra no se separa del azar.
 
+## Experimento 5 — Pares por clase de activo: divisas, índices, materias primas
+
+El horizonte que pidieron: **10 años como análisis primario y 5 como robustez**. Con esa
+muestra el listón es concreto — para llegar a t = 2 hace falta **Sharpe ≥ 0,71 con 10 años**
+y **≥ 1,15 con 5**. Se sabe antes de mirar, para no mover el poste después.
+
+37 pares con **razón económica declarada** (no todas las combinaciones posibles, que sería
+minería de datos con otro nombre), costo 2 bps por cambio de posición cobrado en las dos
+patas.
+
+```bash
+python research/escaneo.py --modo clases --anios 10 --anios-control 5 --guardar
+```
+
+### El filtro que cambió el resultado
+
+La primera corrida devolvió dos ganadores rotundos: **GC=F/GLD (Sharpe 2,55, p = 0,0002)** y
+**SI=F/SLV (2,53, p = 0,0002)**, ambos sobreviviendo Bonferroni. Oro futuro contra oro ETF,
+plata futuro contra plata ETF.
+
+No son operables, y el motivo es instructivo. Mirando el sello de las velas:
+
+| Instrumento | Sello UTC de la vela diaria |
+|---|---|
+| GC=F, SI=F, CL=F, BZ=F | 04:00 / 05:00 (sesión de futuros) |
+| GLD, SLV, SPY, QQQ | 13:30 / 14:30 (apertura de acciones) |
+| ^N225 | 00:00 (Tokio) |
+
+Los futuros de metales liquidan a las 13:30 ET y los ETFs cierran a las 16:00. **El "spread"
+entre esos dos cierres contiene 2,5 horas de movimiento del oro que el futuro no vio**, y ese
+desfase se cierra solo al día siguiente. De ahí el half-life de 2,1 días — del orden de UNA
+barra — que es la firma del artefacto. No se puede operar: haría falta comprar y vender en
+dos momentos distintos del mismo instante.
+
+Se agregaron tres filtros al motor, y quedaron como código, no como nota al pie:
+
+1. **Sincronía**: las dos series tienen que cerrar a la misma hora.
+2. **Half-life ≥ 3 barras**: por debajo de eso se está midiendo el calendario.
+3. **Sin patas de índice**: `^GSPC` se calcula, no se compra. SPY/^GSPC daba Sharpe 1,16
+   con p = 0,007 y es inoperable por definición.
+
+Nueve de los 37 pares caen por estos filtros. Y también apareció y se arregló un bug real:
+la alineación intersectaba por *timestamp exacto*, así que comparar GC=F con GLD devolvía
+**20 fechas en común en vez de 2.509**. Ahora alinea por fecha de calendario.
+
+### Resultado limpio
+
+**28 pares operables**, ambos horizontes:
+
+| Horizonte | Sharpe medio | t | Positivos | Sobreviven Bonferroni / BH |
+|---|---|---|---|---|
+| **10 años (primario)** | **+0,129** | **+2,34** | 19/28 | **0 / 0** |
+| 5 años (robustez) | +0,166 | +1,78 | 18/28 | 0 / 0 |
+
+Por clase, a 10 años:
+
+| Clase | n | Sharpe medio | t | Positivos | Cointegrados |
+|---|---|---|---|---|---|
+| **Divisas** | 12 | **+0,242** | **+3,30** | 10/12 | 4/12 |
+| Materias primas | 9 | +0,099 | +0,85 | 5/9 | 5/9 |
+| Índices | 7 | −0,026 | −0,32 | 4/7 | 2/7 |
+
+**Las divisas son la clase más consistente**, y es la única sin ningún artefacto (todos los
+símbolos FX comparten sello). 10 de 12 pares positivos con t = 3,30 en la media. Pero
+ningún par individual llega a p < 0,05 — la consistencia está en el promedio, no en ninguno.
+
+### Los mejores pares operables (10 años)
+
+| Par | Sharpe | t | p | Half-life | Coint. | Trades |
+|---|---|---|---|---|---|---|
+| **CL=F/BZ=F** (WTI/Brent) | **+0,83** | +2,14 | 0,032 | 12 d | sí | 120 |
+| USDNOK/USDSEK | +0,49 | +1,41 | 0,157 | 23 d | sí | 72 |
+| CADJPY/AUDJPY | +0,47 | +1,36 | 0,173 | 127 d | no | 54 |
+| AUDJPY/NZDJPY | +0,45 | +1,31 | 0,190 | 84 d | no | 30 |
+
+**WTI/Brent es el único candidato serio de todo el proyecto.** Tiene todo lo que se le pide
+a un par: razón económica dura (es el mismo crudo en dos puntos de entrega, unidos por
+arbitraje físico), cointegración fortísima (Engle-Granger −8,47 contra −3,90 al 1 %),
+half-life de 12 días (ni artefacto ni capital inmovilizado meses), 120 operaciones y
+consistencia entre horizontes: Sharpe +0,83 a 10 años y +1,16 a 5.
+
+Y aun así: **p = 0,032 no sobrevive la corrección** por 37 pruebas (Bonferroni exige
+0,0014). Hay un argumento legítimo en contra — WTI/Brent tenía una hipótesis previa fuerte,
+y una hipótesis preespecificada no necesita corregirse por las otras 36. Es un argumento
+válido y también es exactamente el que usa todo el mundo para justificar el cherry-picking.
+Lo honesto es decir las dos cosas: **como parte del escaneo no pasa; como hipótesis única
+preespecificada, p = 0,032 es sugestivo y está por debajo de lo que cualquier mesa exigiría
+para asignar capital.**
+
+### El test de cointegración se gana el lugar
+
+Los pares que pasan Engle-Granger rinden Sharpe **+0,166** contra **+0,105** de los que no
+pasan. La diferencia no es significativa (t = 0,51), pero el signo es el correcto: el gate
+selecciona mejor de lo que descarta.
+
+### La banda VIX 17-21, otra vez
+
+| | Sharpe medio |
+|---|---|
+| Global | +0,129 |
+| **Dentro de VIX 17-21** | **+0,229** |
+
+Mejor en 16 de 28 pares, diferencia t = +0,94. **Tercera vez que aparece la misma dirección**
+—momentum cross-sectional, momentum de sectores, y ahora pares cointegrados— y tercera vez
+que no alcanza significancia. Que un patrón se repita en tres experimentos independientes es
+más de lo que se puede decir de casi todo lo demás del repo; que ninguno de los tres sea
+significativo es exactamente el problema del proyecto.
+
 ---
 
 ## Conclusión
@@ -255,6 +363,16 @@ ausencia de señal.** El gate apagado opera el 96 % del tiempo y pierde de forma
 consistente; encendido se queda afuera. Eso es lo que separa una herramienta de
 investigación de un generador de backtests lindos.
 
+### Lo único que quedó en pie
+
+Después de 68 pruebas intradiarias, 20 pares diarios, un control positivo con momentum y
+37 pares por clase de activo, **sobrevive un candidato**: WTI/Brent, Sharpe +0,83 a 10 años,
+con razón económica, cointegración fuerte y half-life sano. No alcanza para afirmar nada, y
+alcanza para ser lo único que vale la pena seguir midiendo.
+
+Y un patrón que se repitió tres veces sin llegar nunca a significancia: las estrategias
+andan mejor con el VIX entre 17 y 21.
+
 ### Dónde seguiría buscando
 
 Con honestidad sobre las probabilidades:
@@ -266,6 +384,11 @@ Con honestidad sobre las probabilidades:
   spreads del mismo subyacente, triangulación de FX. Ahí la reversión tiene una causa
   económica, no una regresión que salió bien.
 - **Escaneo amplio con FDR desde el principio**, no 20 candidatos elegidos a mano.
+- **WTI/Brent, preespecificado.** Es la única hipótesis que se ganó el derecho a un test
+  propio: definirla de antemano, con datos fuera de la muestra usada acá, y sin escanear
+  nada alrededor. Si sobrevive eso, merece capital de prueba.
+- **Divisas antes que nada.** Es la clase con el promedio más consistente (10/12 positivos,
+  t = 3,30) y la única sin problemas de sincronía. Si hay algo, está ahí.
 - **La banda VIX 17-21, con más historia.** Es la única pista con dirección consistente en
   todas las estrategias probadas. Con datos desde 1990 (el VIX existe desde entonces) la
   muestra dentro de la banda pasaría de 4 a ~7 años. Sigue sin alcanzar para t = 2, pero

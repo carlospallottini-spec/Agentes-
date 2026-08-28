@@ -94,9 +94,16 @@ momentum cross-sectional pasa de Sharpe 0,05 a **0,61 dentro de la banda VIX 17-
 todas las estrategias se rompen por encima de 21. Pero con 4,2 años de muestra en la banda
 eso da t = 1,14: **harían falta ~60 años de calendario para llegar a t = 2.**
 
+Y por clase de activo, a 10 años (divisas, índices, materias primas): 28 pares operables,
+Sharpe medio +0,129 (t = 2,34), **ninguno sobrevive la corrección**. El único candidato
+serio del proyecto es **WTI/Brent** (Sharpe +0,83, cointegración −8,47, half-life 12 días).
+En el camino el escaneo descartó dos "ganadores" de Sharpe 2,5 que eran artefactos de
+cierres no sincrónicos — los filtros que los cazaron quedaron en el motor.
+
 ```bash
 python research/escaneo.py --modo pares --guardar
 python research/escaneo.py --modo intradiario --gate --sensibilidad --guardar
+python research/escaneo.py --modo clases --anios 10 --anios-control 5 --guardar
 python research/control_positivo.py --guardar
 ```
 

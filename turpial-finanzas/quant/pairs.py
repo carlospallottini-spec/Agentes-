@@ -110,7 +110,8 @@ def _veredicto(p: dict, cointegrado: bool) -> str:
 def walk_forward(closes_a: list[float], closes_b: list[float], ventana: int = 250,
                  entrada: float = 2.0, salida: float = 0.5, stop: float = 3.5,
                  max_hold_hl: float = 3.0, cost_bps: float = 5.0,
-                 refit: int = 5, periodos_por_anio: int = 252) -> dict:
+                 refit: int = 5, periodos_por_anio: int = 252,
+                 fechas: list[int] | None = None) -> dict:
     """Backtest del par re-estimando β y el OU en cada ventana (sin look-ahead).
 
     El retorno de la pata es Δlog A − β·Δlog B, y el costo se cobra sobre el turnover de
@@ -169,7 +170,13 @@ def walk_forward(closes_a: list[float], closes_b: list[float], ventana: int = 25
 
     res = metrics(rets, posiciones, trades, periodos_por_anio)
     res["curva"] = [round(v, 5) for v in res["curva"]]
+    # rets[i] se gana entre la barra t = ventana-1+i y la siguiente; para condicionar por
+    # régimen hace falta la fecha t, cuando la posición ya estaba puesta.
+    primera = ventana - 1
+    fechas_senal = (fechas[-n:][primera: primera + len(rets)]
+                    if fechas and len(fechas) >= n else None)
     return {"ok": True, "estrategia": "Pares cointegrados (OU sobre el spread)",
+            "retornos": rets, "fechas_senal": fechas_senal, "primera_barra": primera,
             "parametros": {"ventana": ventana, "entrada_z": entrada, "salida_z": salida,
                            "stop_z": stop, "max_hold_half_lives": max_hold_hl,
                            "costo_bps": cost_bps, "refit_cada": refit,

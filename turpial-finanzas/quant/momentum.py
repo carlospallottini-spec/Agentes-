@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import math
 import random
+from datetime import datetime, timezone
 
 from quant.backtest import metrics
 
@@ -37,14 +38,23 @@ def alinear(series: dict[str, list[dict]]) -> tuple[list[int], dict[str, list[fl
     """
     if not series:
         return [], {}
-    comunes: set[int] | None = None
-    mapas: dict[str, dict[int, float]] = {}
+    comunes: set[str] | None = None
+    mapas: dict[str, dict[str, tuple[int, float]]] = {}
     for sym, pts in series.items():
-        m = {p["t"]: p["c"] for p in pts if p.get("c") and p["c"] > 0}
+        m: dict[str, tuple[int, float]] = {}
+        for p in pts:
+            if not p.get("c") or p["c"] <= 0:
+                continue
+            # Por FECHA de calendario: distintos mercados estampan la vela diaria a
+            # horas distintas y el timestamp exacto casi nunca coincide entre clases.
+            dia = datetime.fromtimestamp(p["t"], tz=timezone.utc).date().isoformat()
+            if dia not in m or p["t"] >= m[dia][0]:
+                m[dia] = (p["t"], p["c"])
         mapas[sym] = m
         comunes = set(m) if comunes is None else (comunes & set(m))
-    fechas = sorted(comunes or [])
-    return fechas, {sym: [mapas[sym][t] for t in fechas] for sym in series}
+    dias = sorted(comunes or [])
+    fechas = [mapas[next(iter(series))][d][0] for d in dias]
+    return fechas, {sym: [mapas[sym][d][1] for d in dias] for sym in series}
 
 
 def _cartera(fechas: list[int], precios: dict[str, list[float]],
