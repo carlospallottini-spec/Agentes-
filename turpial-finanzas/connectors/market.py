@@ -150,14 +150,15 @@ def history(symbol: str, rng: str = "1y", interval: str | None = None) -> dict:
     return out
 
 
-def intraday(symbol: str, interval: str = "5m", dias: int | None = None) -> dict:
-    """Velas intradiarias con la máxima profundidad que Yahoo permite para `interval`.
+def velas(symbol: str, interval: str = "1d", dias: int | None = None) -> dict:
+    """Velas con la máxima profundidad que Yahoo permite para `interval`.
 
-    El endpoint de rangos con nombre ("1mo", "3mo") rechaza los intervalos cortos más
-    allá de su tope; pidiendo por timestamps se llega al límite real (60 días en 5m/15m,
-    7 en 1m). Devuelve el mismo formato que `history`, más `dias_pedidos`.
+    Pidiendo por timestamps en vez de por rangos con nombre se llega al límite real de
+    cada intervalo: 60 días en 5m/15m, 7 en 1m, y en diario **décadas** — `range=max`
+    con `interval=1d` devuelve velas mensuales, pero por timestamps devuelve las diarias.
+    Devuelve el mismo formato que `history`, más `dias_pedidos`.
     """
-    interval = interval if interval in _INTERVALS else "5m"
+    interval = interval if interval in _INTERVALS else "1d"
     tope = _MAX_DIAS.get(interval, 60)
     dias = min(dias or tope, tope)
     fin = int(datetime.now(tz=timezone.utc).timestamp())
@@ -245,3 +246,8 @@ def options(symbol: str, expiration: int | None = None) -> dict:
         "calls": [_opt_row(o) for o in chain.get("calls", [])],
         "puts": [_opt_row(o) for o in chain.get("puts", [])],
     }
+
+
+def intraday(symbol: str, interval: str = "5m", dias: int | None = None) -> dict:
+    """Atajo de `velas()` para intervalos intradiarios."""
+    return velas(symbol, interval, dias)

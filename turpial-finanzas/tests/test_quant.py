@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from quant import backtest, markov, ou, pairs, scan  # noqa: E402
+from quant import backtest, markov, momentum, ou, pairs, regimen_vol, scan  # noqa: E402
 from quant.stats import chi2_sf, normal_cdf, ols, quantile  # noqa: E402
 from quant.strategies import FLAT, LONG, SHORT, ou_position, regime_allows  # noqa: E402
 
@@ -364,6 +364,108 @@ def test_resumir_marca_lo_que_sobrevive():
     assert filas[0]["sobrevive_bonferroni"] is True
     assert filas[1]["sobrevive_bonferroni"] is False
     assert abs(r["esperados_por_azar"] - 0.2) < 1e-9
+
+
+# --------------------------------------------- meta-control: ¿el motor VE un efecto?
+def test_momentum_detecta_efecto_inyectado():
+    """Sobre un universo donde el momentum existe por construcción, hay que detectarlo.
+
+    Es el test que le da valor a todos los resultados negativos del repo: si el motor
+    no encontrara un efecto puesto a mano, sus "no encontré nada" no probarían nada.
+    """
+    f, p = momentum.simular_universo(n_activos=20, persistencia=2000, semilla=5)
+    xs = momentum.cross_sectional(f, p, cost_bps=0.0)
+    ts = momentum.time_series(f, p, cost_bps=0.0)
+    assert xs["ok"] and ts["ok"]
+    assert xs["metricas"]["sharpe"] > 1.5
+    assert ts["metricas"]["sharpe"] > 1.5
+
+    nulo = momentum.nulo_por_permutacion(momentum.cross_sectional, f, p,
+                                         repeticiones=60, cost_bps=0.0)
+    assert nulo["ok"]
+    assert momentum.p_empirico(xs["metricas"]["sharpe"], nulo) < 0.05
+
+
+def test_momentum_no_inventa_efecto_en_random_walks():
+    """Sobre random walks puros, el momentum no puede separarse del nulo barajado."""
+    rng = random.Random(11)
+    fechas = [i * 86400 for i in range(3000)]
+    precios = {}
+    for a in range(12):
+        px = [100.0]
+        for _ in range(2999):
+            px.append(px[-1] * math.exp(rng.gauss(0, 0.01)))
+        precios[f"RW{a}"] = px
+    xs = momentum.cross_sectional(fechas, precios, cost_bps=0.0)
+    nulo = momentum.nulo_por_permutacion(momentum.cross_sectional, fechas, precios,
+                                         repeticiones=60, cost_bps=0.0)
+    assert momentum.p_empirico(xs["metricas"]["sharpe"], nulo) > 0.05
+
+
+def test_nulo_por_permutacion_esta_centrado_en_cero():
+    """El nulo debe rodear al cero: si estuviera sesgado, los p-valores mentirían."""
+    f, p = momentum.simular_universo(n_activos=15, n_dias=3000, semilla=8)
+    nulo = momentum.nulo_por_permutacion(momentum.cross_sectional, f, p,
+                                         repeticiones=100, cost_bps=0.0)
+    assert abs(nulo["media"]) < 0.35
+    assert nulo["p05"] < 0 < nulo["p95"]
+
+
+def test_momentum_alinea_por_fecha():
+    """Sin fechas comunes no hay cartera: la intersección tiene que ser exacta."""
+    series = {"A": [{"t": 1, "c": 10.0}, {"t": 2, "c": 11.0}, {"t": 3, "c": 12.0}],
+              "B": [{"t": 2, "c": 20.0}, {"t": 3, "c": 21.0}, {"t": 4, "c": 22.0}]}
+    fechas, precios = momentum.alinear(series)
+    assert fechas == [2, 3]
+    assert precios["A"] == [11.0, 12.0] and precios["B"] == [20.0, 21.0]
+
+
+def test_momentum_costos_reducen_retorno():
+    f, p = momentum.simular_universo(n_activos=15, n_dias=3000, persistencia=2000, semilla=4)
+    sin = momentum.cross_sectional(f, p, cost_bps=0.0)
+    con = momentum.cross_sectional(f, p, cost_bps=50.0)
+    assert con["metricas"]["retorno_total_pct"] < sin["metricas"]["retorno_total_pct"]
+
+
+# ------------------------------------------------- régimen de volatilidad (VIX)
+def test_regimen_vix_clasifica_en_las_bandas():
+    assert regimen_vol.clasificar(12.0) == "bajo"
+    assert regimen_vol.clasificar(17.0) == "medio"     # borde inferior incluido
+    assert regimen_vol.clasificar(21.0) == "medio"     # borde superior incluido
+    assert regimen_vol.clasificar(21.01) == "alto"
+    assert regimen_vol.clasificar(16.99) == "bajo"
+
+
+def test_regimen_vix_alinea_sin_mirar_el_futuro():
+    """Para una fecha sin VIX exacto se usa el ÚLTIMO anterior, nunca uno posterior."""
+    fechas = [100, 150, 200, 250]
+    fvix = [90, 160, 240]
+    vals = [15.0, 19.0, 25.0]
+    out = regimen_vol.alinear(fechas, fvix, vals)
+    assert out == [15.0, 15.0, 19.0, 25.0]
+    # Antes del primer dato de VIX no se inventa nada.
+    assert regimen_vol.alinear([50], fvix, vals) == [None]
+
+
+def test_regimen_vix_separa_los_retornos():
+    """Retornos buenos sólo en el régimen medio: tiene que verse en las métricas."""
+    rng = random.Random(3)
+    rets, vix = [], []
+    for i in range(600):
+        en_medio = (i % 3 == 0)
+        vix.append(19.0 if en_medio else 12.0)
+        rets.append(rng.gauss(0.002, 0.01) if en_medio else rng.gauss(-0.0005, 0.01))
+    r = regimen_vol.por_regimen(rets, vix)
+    assert r["medio"]["suficiente"] and r["bajo"]["suficiente"]
+    assert r["medio"]["sharpe"] > r["bajo"]["sharpe"]
+    assert abs(r["medio"]["pct_del_tiempo"] - 33.3) < 1.0
+    d = regimen_vol.diferencia_de_medias(rets, vix, "medio")
+    assert d["ok"] and d["significativa_5pct"] is True and d["diferencia_bps"] > 0
+
+
+def test_regimen_vix_no_afirma_con_pocos_datos():
+    r = regimen_vol.por_regimen([0.001] * 10, [19.0] * 10)
+    assert r["medio"]["suficiente"] is False
 
 
 def main() -> int:

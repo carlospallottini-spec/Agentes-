@@ -69,6 +69,8 @@ y el **half-life** es lo que hace operable al modelo: dice en cuántos días se 
 | `quant/backtest.py` | Backtest **walk-forward** (sin look-ahead) con costos, y métricas contra buy & hold |
 | `quant/pairs.py` | Cointegración de Engle-Granger, hedge ratio β y OU sobre el spread |
 | `quant/scan.py` | Significancia del Sharpe, Bonferroni y Benjamini-Hochberg |
+| `quant/momentum.py` | Momentum cross-sectional y time-series, con nulo por permutación |
+| `quant/regimen_vol.py` | Regímenes de VIX (bajo / 17-21 / alto) y métricas condicionadas |
 | `quant/engine.py` | Orquesta todo con datos reales de mercado |
 
 ### Resultados medidos
@@ -82,9 +84,20 @@ El resultado, en una línea: **no se encontró reversión a la media operable en
 lado.** Ninguna de las 48 pruebas intradiarias llega a p < 0,05, y a costo cero el Sharpe
 medio es −0,11 con t = −0,33. No es que los costos se coman el edge: no hay edge.
 
+Y el control que le da valor a ese "no": el motor **sí detecta** un efecto inyectado en
+datos sintéticos (p = 0,010) y **sí reproduce** el crash de momentum de 2009. No es ciego.
+Lo que muestra el control positivo es más incómodo: **ni el momentum —documentado desde
+1993— llega a significancia con 20 años de datos** (Sharpe +0,06, p empírico 0,144).
+
+Condicionando por régimen de VIX aparece la única pista con dirección consistente: el
+momentum cross-sectional pasa de Sharpe 0,05 a **0,61 dentro de la banda VIX 17-21**, y
+todas las estrategias se rompen por encima de 21. Pero con 4,2 años de muestra en la banda
+eso da t = 1,14: **harían falta ~60 años de calendario para llegar a t = 2.**
+
 ```bash
 python research/escaneo.py --modo pares --guardar
 python research/escaneo.py --modo intradiario --gate --sensibilidad --guardar
+python research/control_positivo.py --guardar
 ```
 
 **Lo importante es lo que el motor se niega a afirmar.** Toda serie finita produce un
@@ -99,7 +112,7 @@ La matemática completa, con derivaciones y limitaciones, está en
 ```bash
 python turpial.py --quant KO      # OU + Markov + backtest de un activo
 python turpial.py --par EWA EWC   # cointegración y OU sobre el spread
-python tests/test_quant.py        # 29 tests contra procesos simulados, sin red
+python tests/test_quant.py        # 38 tests contra procesos simulados, sin red
 ```
 
 ### Llevarlo a un tester real

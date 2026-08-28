@@ -220,14 +220,16 @@ parámetros **conocidos** y exige recuperarlos.
 - El backtest no mira el futuro (test bit a bit descrito arriba).
 
 ```bash
-python tests/test_quant.py     # 29/29 tests, sin red, deterministas
+python tests/test_quant.py     # 38/38 tests, sin red, deterministas
 ```
 
 ## 10. Qué encontró todo esto
 
-Nada operable. El escaneo completo —68 pruebas con corrección por múltiples tests— está en
+Nada operable. El escaneo completo —68 pruebas con corrección por múltiples tests, más un
+control positivo con momentum y condicionamiento por régimen de VIX— está en
 [`resultados.md`](./resultados.md). Vale la pena leerlo antes que cualquier otra cosa de
-este repo: es el resultado real, y es negativo.
+este repo: es el resultado real, es negativo, y el control positivo muestra que ni siquiera
+un efecto documentado desde 1993 alcanza significancia con 20 años de datos.
 
 ## 11. De la investigación al tester
 

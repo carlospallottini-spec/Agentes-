@@ -146,8 +146,14 @@ def walk_forward(closes: list[float], ventana: int = 250, entrada: float = 1.5,
     comparacion = metrics(bh, periodos_por_anio=periodos_por_anio)
     comparacion.pop("curva", None)
 
+    # rets[i] corresponde a la barra t = ventana-1+i: ahí se decidió la posición y ahí
+    # se observa el régimen; el retorno se gana entre t y t+1.
+    primera_barra = ventana - 1
+
     return {
         "ok": True,
+        "retornos": rets,
+        "primera_barra": primera_barra,
         "estrategia": ("OU mean-reversion"
                        + (" + gate Dickey-Fuller" if exigir_estacionaria else "")
                        + (" + filtro Markov" if usar_regimen else "")),
