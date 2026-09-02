@@ -70,6 +70,7 @@ y el **half-life** es lo que hace operable al modelo: dice en cuántos días se 
 | `quant/pairs.py` | Cointegración de Engle-Granger, hedge ratio β y OU sobre el spread |
 | `quant/scan.py` | Significancia del Sharpe, Bonferroni y Benjamini-Hochberg |
 | `quant/momentum.py` | Momentum cross-sectional y time-series, con nulo por permutación |
+| `quant/intradia.py` | Motores de sesión (compra en la apertura, sale en el cierre) y su nulo |
 | `quant/regimen_vol.py` | Regímenes de VIX (bajo / 17-21 / alto) y métricas condicionadas |
 | `quant/engine.py` | Orquesta todo con datos reales de mercado |
 
@@ -119,7 +120,7 @@ La matemática completa, con derivaciones y limitaciones, está en
 ```bash
 python turpial.py --quant KO      # OU + Markov + backtest de un activo
 python turpial.py --par EWA EWC   # cointegración y OU sobre el spread
-python tests/test_quant.py        # 38 tests contra procesos simulados, sin red
+python tests/test_quant.py        # 45 tests contra procesos simulados, sin red
 ```
 
 ### Llevarlo a un tester real

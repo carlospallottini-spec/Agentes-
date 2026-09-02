@@ -10,6 +10,7 @@ acciones, ETFs, bonos (yields), crypto, Forex, commodities/futuros e índices.
 """
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 
 import httpx
@@ -163,17 +164,41 @@ def velas(symbol: str, interval: str = "1d", dias: int | None = None) -> dict:
     dias = min(dias or tope, tope)
     fin = int(datetime.now(tz=timezone.utc).timestamp())
     ini = fin - dias * 86400
-    try:
-        with _client() as c:
-            data = c.get(_CHART.format(sym=symbol),
-                         params={"period1": ini, "period2": fin, "interval": interval}).json()
-        res = data["chart"]["result"][0]
-        ts = res["timestamp"]
-        closes = res["indicators"]["quote"][0]["close"]
-    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+    # El feed gratuito falla de forma intermitente (devuelve result=null con HTTP 200).
+    # Sin reintento, un escaneo de decenas de símbolos pierde filas al azar y el
+    # resultado cambia entre corridas.
+    res = None
+    for intento in range(3):
+        try:
+            with _client() as c:
+                data = c.get(_CHART.format(sym=symbol),
+                             params={"period1": ini, "period2": fin,
+                                     "interval": interval}).json()
+            res = data["chart"]["result"][0]
+            ts = res["timestamp"]
+            closes = res["indicators"]["quote"][0]["close"]
+            break
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+            res = None
+            if intento < 2:
+                time.sleep(1.5 * (intento + 1))
+    if res is None:
         return {"symbol": symbol.upper(), "interval": interval, "dias_pedidos": dias,
                 "points": []}
-    points = [{"t": t, "c": round(c, 6)} for t, c in zip(ts, closes) if c is not None]
+    q = res["indicators"]["quote"][0]
+    op, hi, lo = q.get("open", []), q.get("high", []), q.get("low", [])
+    points = []
+    for i, (t, c) in enumerate(zip(ts, closes)):
+        if c is None:
+            continue
+        p = {"t": t, "c": round(c, 6)}
+        # OHLC cuando el feed lo trae: las estrategias de sesión (gaps, posición del
+        # cierre en el rango, stops intradía) no se pueden evaluar sólo con cierres.
+        for clave, serie in (("o", op), ("h", hi), ("l", lo)):
+            v = serie[i] if i < len(serie) else None
+            if v is not None:
+                p[clave] = round(v, 6)
+        points.append(p)
     return {"symbol": symbol.upper(), "interval": interval, "dias_pedidos": dias,
             "range": f"{dias}d", "points": points}
 

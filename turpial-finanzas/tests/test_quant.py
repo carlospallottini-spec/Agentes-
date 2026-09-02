@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from quant import backtest, markov, momentum, ou, pairs, regimen_vol, scan  # noqa: E402
+from quant import backtest, intradia, markov, momentum, ou, pairs, regimen_vol, scan  # noqa: E402
 from quant.stats import chi2_sf, normal_cdf, ols, quantile  # noqa: E402
 from quant.strategies import FLAT, LONG, SHORT, ou_position, regime_allows  # noqa: E402
 
@@ -482,6 +482,89 @@ def test_regimen_vix_separa_los_retornos():
 def test_regimen_vix_no_afirma_con_pocos_datos():
     r = regimen_vol.por_regimen([0.001] * 10, [19.0] * 10)
     assert r["medio"]["suficiente"] is False
+
+
+# ------------------------------------------------ motores intradía de sesión
+def _ohlc(n=400, seed=2):
+    rng = random.Random(seed)
+    px, out = 100.0, []
+    for i in range(n):
+        o = px
+        h = o * (1 + abs(rng.gauss(0, 0.01)))
+        l = o * (1 - abs(rng.gauss(0, 0.01)))
+        c = rng.uniform(l, h)
+        out.append({"t": i * 86400, "o": o, "h": h, "l": l, "c": c})
+        px = c
+    return out
+
+
+def test_atr_de_sesion_usa_solo_el_pasado():
+    o = _ohlc(60)
+    atr = intradia.atr_sesion(o, 30, 14)
+    assert atr is not None and atr > 0
+    # Cambiar el futuro no puede cambiar el ATR de hoy.
+    o2 = [dict(b) for b in o]
+    for i in range(30, 60):
+        o2[i]["h"] *= 5
+    assert abs(intradia.atr_sesion(o2, 30, 14) - atr) < 1e-12
+    assert intradia.atr_sesion(o, 5, 14) is None       # sin historia suficiente
+
+
+def test_señal_session_markov_dispara_con_caida_fuerte():
+    o = _ohlc(60)
+    # Se fuerza a que la sesión previa cierre muy abajo de su apertura y del rango.
+    o[40] = {"t": 40 * 86400, "o": 100.0, "h": 100.5, "l": 90.0, "c": 90.2}
+    mask = intradia.señal_session_markov(o)
+    assert mask[41] is True
+
+
+def test_gap_fade_respeta_el_rango_de_hueco():
+    o = _ohlc(300)
+    for b in o:                                   # tendencia alcista clara
+        pass
+    cierres = [b["c"] for b in o]
+    t = 250
+    ayer = cierres[t - 1]
+    o[t]["o"] = ayer * 0.99                       # hueco de -1%: dentro del rango
+    mask = intradia.señal_gap_fade(o, sma=200)
+    if cierres[t - 1] > sum(cierres[t - 200:t]) / 200:
+        assert mask[t] is True
+    o[t]["o"] = ayer * 0.95                       # -5%: fuera del rango
+    assert intradia.señal_gap_fade(o, sma=200)[t] is False
+
+
+def test_gap_fade_el_supuesto_ambiguo_cambia_el_signo():
+    """En un día que toca stop y objetivo, el supuesto decide el resultado."""
+    o = [{"t": 0, "o": 100.0, "h": 100.0, "l": 100.0, "c": 100.0},
+         {"t": 86400, "o": 99.0, "h": 101.5, "l": 97.5, "c": 99.0}]
+    mask = [False, True]
+    cons = intradia.simular_gap_fade(o, mask, cost_bps=0.0, ambiguo="stop")
+    opt = intradia.simular_gap_fade(o, mask, cost_bps=0.0, ambiguo="objetivo")
+    assert cons["retornos"][1] < 0 < opt["retornos"][1]
+    assert intradia.dias_ambiguos(o, mask)["ambiguos"] == 1
+
+
+def test_stop_del_motor_s_corta_la_perdida():
+    o = _ohlc(60)
+    o[40] = {"t": 40 * 86400, "o": 100.0, "h": 100.5, "l": 90.0, "c": 90.2}
+    o[41] = {"t": 41 * 86400, "o": 90.0, "h": 90.5, "l": 50.0, "c": 55.0}
+    mask = intradia.señal_session_markov(o)
+    r = intradia.simular_session_markov(o, mask, cost_bps=0.0)
+    # Con stop a 2 ATR la pérdida no puede ser la del cierre (mucho peor).
+    sin_stop = intradia.simular_session_markov(o, mask, cost_bps=0.0, stop_atr=0)
+    assert r["retornos"][41] > sin_stop["retornos"][41]
+
+
+def test_nulo_intradia_conserva_la_cantidad_de_trades():
+    o = _ohlc(500)
+    mask = intradia.señal_session_markov(o)
+    n = sum(1 for x in mask if x)
+    if n < 5:
+        return
+    nulo = intradia.nulo_por_permutacion(intradia.simular_session_markov, o, mask,
+                                         repeticiones=20, cost_bps=0.0)
+    assert nulo["ok"] and nulo["n"] == 20
+    assert nulo["p05"] <= nulo["p50"] <= nulo["p95"]
 
 
 def main() -> int:

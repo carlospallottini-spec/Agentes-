@@ -1,0 +1,678 @@
+{
+  "corrido_utc": "2026-09-02T12:27:07+00:00",
+  "ventanas": {
+    "2006-2026 (todo)": {
+      "S": {
+        "n": 5026,
+        "retorno_total_pct": 120.59,
+        "cagr_pct": 4.05,
+        "vol_anual_pct": 7.24,
+        "sharpe": 0.55,
+        "sortino": 0.38,
+        "max_drawdown_pct": 14.11,
+        "calmar": 0.29,
+        "hit_rate_pct": 10.7,
+        "trades": 991,
+        "exposicion_pct": 100.0,
+        "equity_final": 2.2059,
+        "dias_operados_pct": 19.7,
+        "ganadores_pct": 54.5,
+        "profit_factor": 1.236,
+        "retorno_medio_por_trade_bps": 8.51
+      },
+      "G": {
+        "n": 5026,
+        "retorno_total_pct": -55.09,
+        "cagr_pct": -3.93,
+        "vol_anual_pct": 5.96,
+        "sharpe": -0.67,
+        "sortino": -0.88,
+        "max_drawdown_pct": 56.03,
+        "calmar": -0.07,
+        "hit_rate_pct": 8.2,
+        "trades": 859,
+        "exposicion_pct": 100.0,
+        "equity_final": 0.4491,
+        "dias_operados_pct": 17.1,
+        "ganadores_pct": 48.1,
+        "profit_factor": 0.813,
+        "retorno_medio_por_trade_bps": -8.9
+      }
+    },
+    "2018-2026 (la del EA)": {
+      "S": {
+        "n": 2177,
+        "retorno_total_pct": 29.99,
+        "cagr_pct": 3.08,
+        "vol_anual_pct": 7.36,
+        "sharpe": 0.41,
+        "sortino": 0.29,
+        "max_drawdown_pct": 9.32,
+        "calmar": 0.33,
+        "hit_rate_pct": 11.4,
+        "trades": 452,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.2999,
+        "dias_operados_pct": 20.8,
+        "ganadores_pct": 55.1,
+        "profit_factor": 1.172,
+        "retorno_medio_por_trade_bps": 6.32
+      },
+      "G": {
+        "n": 2177,
+        "retorno_total_pct": -42.08,
+        "cagr_pct": -6.13,
+        "vol_anual_pct": 6.21,
+        "sharpe": -1.02,
+        "sortino": -1.33,
+        "max_drawdown_pct": 44.66,
+        "calmar": -0.14,
+        "hit_rate_pct": 8.8,
+        "trades": 415,
+        "exposicion_pct": 100.0,
+        "equity_final": 0.5792,
+        "dias_operados_pct": 19.1,
+        "ganadores_pct": 46.0,
+        "profit_factor": 0.737,
+        "retorno_medio_por_trade_bps": -12.76
+      }
+    },
+    "2006-2017 (fuera de esa muestra)": {
+      "S": {
+        "n": 2849,
+        "retorno_total_pct": 63.37,
+        "cagr_pct": 4.44,
+        "vol_anual_pct": 7.1,
+        "sharpe": 0.61,
+        "sortino": 0.42,
+        "max_drawdown_pct": 14.11,
+        "calmar": 0.31,
+        "hit_rate_pct": 10.1,
+        "trades": 537,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.6337,
+        "dias_operados_pct": 18.8,
+        "ganadores_pct": 53.8,
+        "profit_factor": 1.271,
+        "retorno_medio_por_trade_bps": 9.67
+      },
+      "G": {
+        "n": 2849,
+        "retorno_total_pct": -22.46,
+        "cagr_pct": -2.22,
+        "vol_anual_pct": 5.77,
+        "sharpe": -0.39,
+        "sortino": -0.52,
+        "max_drawdown_pct": 27.19,
+        "calmar": -0.08,
+        "hit_rate_pct": 7.8,
+        "trades": 444,
+        "exposicion_pct": 100.0,
+        "equity_final": 0.7754,
+        "dias_operados_pct": 15.6,
+        "ganadores_pct": 50.0,
+        "profit_factor": 0.886,
+        "retorno_medio_por_trade_bps": -5.3
+      }
+    }
+  },
+  "ambiguedad": {
+    "conteo": {
+      "ambiguos": 100,
+      "total": 859,
+      "pct": 11.6
+    },
+    "resultados": {
+      "stop": {
+        "n": 5026,
+        "retorno_total_pct": -55.09,
+        "cagr_pct": -3.93,
+        "vol_anual_pct": 5.96,
+        "sharpe": -0.67,
+        "sortino": -0.88,
+        "max_drawdown_pct": 56.03,
+        "calmar": -0.07,
+        "hit_rate_pct": 8.2,
+        "trades": 859,
+        "exposicion_pct": 100.0,
+        "equity_final": 0.4491,
+        "dias_operados_pct": 17.1,
+        "ganadores_pct": 48.1,
+        "profit_factor": 0.813,
+        "retorno_medio_por_trade_bps": -8.9
+      },
+      "objetivo": {
+        "n": 5026,
+        "retorno_total_pct": 232.2,
+        "cagr_pct": 6.2,
+        "vol_anual_pct": 5.87,
+        "sharpe": 1.03,
+        "sortino": 1.2,
+        "max_drawdown_pct": 8.56,
+        "calmar": 0.72,
+        "hit_rate_pct": 10.2,
+        "trades": 859,
+        "exposicion_pct": 100.0,
+        "equity_final": 3.322,
+        "dias_operados_pct": 17.1,
+        "ganadores_pct": 59.7,
+        "profit_factor": 1.407,
+        "retorno_medio_por_trade_bps": 14.38
+      }
+    }
+  },
+  "symbol": "^NDX",
+  "sesiones": 5026,
+  "costo_base_bps": 1.0,
+  "bloques": [
+    {
+      "nombre": "MOTOR S — SessionMarkov (compra si ayer cayó >1 ATR o cerró en el 20% bajo)",
+      "metricas": {
+        "n": 5026,
+        "retorno_total_pct": 120.59,
+        "cagr_pct": 4.05,
+        "vol_anual_pct": 7.24,
+        "sharpe": 0.55,
+        "sortino": 0.38,
+        "max_drawdown_pct": 14.11,
+        "calmar": 0.29,
+        "hit_rate_pct": 10.7,
+        "trades": 991,
+        "exposicion_pct": 100.0,
+        "equity_final": 2.2059,
+        "dias_operados_pct": 19.7,
+        "ganadores_pct": 54.5,
+        "profit_factor": 1.236,
+        "retorno_medio_por_trade_bps": 8.51
+      },
+      "t_stat": 2.289,
+      "p_parametrico": 0.022066172695980546,
+      "nulo": {
+        "ok": true,
+        "n": 500,
+        "media": -0.0033000000000001054,
+        "desvio": 0.2059965513262703,
+        "p05": -0.35,
+        "p50": 0.0,
+        "p95": 0.32,
+        "max": 0.61
+      },
+      "p_empirico": 0.007984031936127744,
+      "referencia_todos_los_dias": {
+        "n": 5026,
+        "retorno_total_pct": -0.34,
+        "cagr_pct": -0.02,
+        "vol_anual_pct": 15.12,
+        "sharpe": -0.0,
+        "sortino": -0.0,
+        "max_drawdown_pct": 34.03,
+        "calmar": -0.0,
+        "hit_rate_pct": 53.4,
+        "trades": 5011,
+        "exposicion_pct": 100.0,
+        "equity_final": 0.9966,
+        "dias_operados_pct": 99.7,
+        "ganadores_pct": 53.5,
+        "profit_factor": 1.012,
+        "retorno_medio_por_trade_bps": 0.45
+      },
+      "sensibilidad_costo": {
+        "0.0": {
+          "sharpe": 0.68,
+          "cagr_pct": 5.07,
+          "max_drawdown_pct": 12.98,
+          "profit_factor": 1.298,
+          "retorno_medio_por_trade_bps": 10.49
+        },
+        "1.0": {
+          "sharpe": 0.55,
+          "cagr_pct": 4.05,
+          "max_drawdown_pct": 14.11,
+          "profit_factor": 1.236,
+          "retorno_medio_por_trade_bps": 8.51
+        },
+        "2.0": {
+          "sharpe": 0.41,
+          "cagr_pct": 3.03,
+          "max_drawdown_pct": 15.23,
+          "profit_factor": 1.177,
+          "retorno_medio_por_trade_bps": 6.53
+        },
+        "5.0": {
+          "sharpe": 0.01,
+          "cagr_pct": 0.04,
+          "max_drawdown_pct": 21.79,
+          "profit_factor": 1.015,
+          "retorno_medio_por_trade_bps": 0.6
+        }
+      },
+      "regimen_vix": {
+        "bajo": {
+          "n": 2398,
+          "suficiente": true,
+          "pct_del_tiempo": 47.7,
+          "anios": 9.52,
+          "sharpe": 1.37,
+          "retorno_total_pct": 113.86,
+          "vol_anual_pct": 5.82,
+          "max_drawdown_pct": 6.71,
+          "media_diaria_bps": 3.17
+        },
+        "medio": {
+          "n": 1066,
+          "suficiente": true,
+          "pct_del_tiempo": 21.2,
+          "anios": 4.23,
+          "sharpe": -0.29,
+          "retorno_total_pct": -8.65,
+          "vol_anual_pct": 7.36,
+          "max_drawdown_pct": 23.67,
+          "media_diaria_bps": -0.85
+        },
+        "alto": {
+          "n": 1562,
+          "suficiente": true,
+          "pct_del_tiempo": 31.1,
+          "anios": 6.2,
+          "sharpe": 0.22,
+          "retorno_total_pct": 12.92,
+          "vol_anual_pct": 8.93,
+          "max_drawdown_pct": 18.03,
+          "media_diaria_bps": 0.78
+        },
+        "_sin_vix": 0,
+        "_bandas": {
+          "bajo": "VIX < 17.0",
+          "medio": "17.0 ≤ VIX ≤ 21.0",
+          "alto": "VIX > 21.0"
+        }
+      },
+      "diferencia_medio": {
+        "ok": true,
+        "regimen": "medio",
+        "n_dentro": 1066,
+        "n_fuera": 3960,
+        "media_dentro_bps": -0.849,
+        "media_fuera_bps": 2.226,
+        "diferencia_bps": -3.075,
+        "t": -1.93,
+        "p_valor": 0.05360854398212345,
+        "significativa_5pct": false
+      },
+      "por_anio": {
+        "2006": {
+          "retorno_pct": 0.89,
+          "sharpe": 0.57,
+          "trades": 10
+        },
+        "2007": {
+          "retorno_pct": -2.5,
+          "sharpe": -0.32,
+          "trades": 51
+        },
+        "2008": {
+          "retorno_pct": 9.9,
+          "sharpe": 1.27,
+          "trades": 67
+        },
+        "2009": {
+          "retorno_pct": 10.87,
+          "sharpe": 1.74,
+          "trades": 46
+        },
+        "2010": {
+          "retorno_pct": 2.74,
+          "sharpe": 0.51,
+          "trades": 41
+        },
+        "2011": {
+          "retorno_pct": 0.82,
+          "sharpe": 0.12,
+          "trades": 60
+        },
+        "2012": {
+          "retorno_pct": 0.29,
+          "sharpe": 0.04,
+          "trades": 41
+        },
+        "2013": {
+          "retorno_pct": 5.36,
+          "sharpe": 0.84,
+          "trades": 39
+        },
+        "2014": {
+          "retorno_pct": 5.18,
+          "sharpe": 0.66,
+          "trades": 44
+        },
+        "2015": {
+          "retorno_pct": -7.16,
+          "sharpe": -0.76,
+          "trades": 62
+        },
+        "2016": {
+          "retorno_pct": 9.04,
+          "sharpe": 1.07,
+          "trades": 48
+        },
+        "2017": {
+          "retorno_pct": 16.97,
+          "sharpe": 3.02,
+          "trades": 28
+        },
+        "2018": {
+          "retorno_pct": 10.44,
+          "sharpe": 0.98,
+          "trades": 58
+        },
+        "2019": {
+          "retorno_pct": -1.77,
+          "sharpe": -0.29,
+          "trades": 39
+        },
+        "2020": {
+          "retorno_pct": 20.2,
+          "sharpe": 2.69,
+          "trades": 53
+        },
+        "2021": {
+          "retorno_pct": 0.89,
+          "sharpe": 0.12,
+          "trades": 55
+        },
+        "2022": {
+          "retorno_pct": -3.05,
+          "sharpe": -0.37,
+          "trades": 75
+        },
+        "2023": {
+          "retorno_pct": 5.88,
+          "sharpe": 0.84,
+          "trades": 58
+        },
+        "2024": {
+          "retorno_pct": -0.69,
+          "sharpe": -0.11,
+          "trades": 51
+        },
+        "2025": {
+          "retorno_pct": 6.97,
+          "sharpe": 0.91,
+          "trades": 40
+        },
+        "2026": {
+          "retorno_pct": -5.88,
+          "sharpe": -1.64,
+          "trades": 25
+        }
+      }
+    },
+    {
+      "nombre": "MOTOR G — Gap-Fade (hueco bajista 0.3-2% en tendencia alcista)",
+      "metricas": {
+        "n": 5026,
+        "retorno_total_pct": -55.09,
+        "cagr_pct": -3.93,
+        "vol_anual_pct": 5.96,
+        "sharpe": -0.67,
+        "sortino": -0.88,
+        "max_drawdown_pct": 56.03,
+        "calmar": -0.07,
+        "hit_rate_pct": 8.2,
+        "trades": 859,
+        "exposicion_pct": 100.0,
+        "equity_final": 0.4491,
+        "dias_operados_pct": 17.1,
+        "ganadores_pct": 48.1,
+        "profit_factor": 0.813,
+        "retorno_medio_por_trade_bps": -8.9
+      },
+      "t_stat": -2.704,
+      "p_parametrico": 0.006849930211277444,
+      "nulo": {
+        "ok": true,
+        "n": 500,
+        "media": -0.9230599999999993,
+        "desvio": 0.11690238978513211,
+        "p05": -1.12,
+        "p50": -0.92,
+        "p95": -0.74,
+        "max": -0.54
+      },
+      "p_empirico": 0.01996007984031936,
+      "referencia_todos_los_dias": {
+        "n": 5026,
+        "retorno_total_pct": -77.37,
+        "cagr_pct": -7.18,
+        "vol_anual_pct": 7.16,
+        "sharpe": -1.04,
+        "sortino": -1.72,
+        "max_drawdown_pct": 78.38,
+        "calmar": -0.09,
+        "hit_rate_pct": 11.0,
+        "trades": 1203,
+        "exposicion_pct": 100.0,
+        "equity_final": 0.2263,
+        "dias_operados_pct": 23.9,
+        "ganadores_pct": 46.0,
+        "profit_factor": 0.762,
+        "retorno_medio_por_trade_bps": -11.93
+      },
+      "sensibilidad_costo": {
+        "0.0": {
+          "sharpe": -0.42,
+          "cagr_pct": -2.45,
+          "max_drawdown_pct": 41.35,
+          "profit_factor": 0.883,
+          "retorno_medio_por_trade_bps": -5.35
+        },
+        "1.0": {
+          "sharpe": -0.67,
+          "cagr_pct": -3.93,
+          "max_drawdown_pct": 56.03,
+          "profit_factor": 0.813,
+          "retorno_medio_por_trade_bps": -8.9
+        },
+        "2.0": {
+          "sharpe": -0.92,
+          "cagr_pct": -5.4,
+          "max_drawdown_pct": 67.57,
+          "profit_factor": 0.748,
+          "retorno_medio_por_trade_bps": -12.46
+        },
+        "5.0": {
+          "sharpe": -1.65,
+          "cagr_pct": -9.65,
+          "max_drawdown_pct": 87.0,
+          "profit_factor": 0.581,
+          "retorno_medio_por_trade_bps": -23.12
+        }
+      },
+      "regimen_vix": {
+        "bajo": {
+          "n": 2398,
+          "suficiente": true,
+          "pct_del_tiempo": 47.7,
+          "anios": 9.52,
+          "sharpe": 0.47,
+          "retorno_total_pct": 27.26,
+          "vol_anual_pct": 5.4,
+          "max_drawdown_pct": 12.9,
+          "media_diaria_bps": 1.01
+        },
+        "medio": {
+          "n": 1066,
+          "suficiente": true,
+          "pct_del_tiempo": 21.2,
+          "anios": 4.23,
+          "sharpe": -1.5,
+          "retorno_total_pct": -36.43,
+          "vol_anual_pct": 7.13,
+          "max_drawdown_pct": 39.15,
+          "media_diaria_bps": -4.25
+        },
+        "alto": {
+          "n": 1562,
+          "suficiente": true,
+          "pct_del_tiempo": 31.1,
+          "anios": 6.2,
+          "sharpe": -1.62,
+          "retorno_total_pct": -44.49,
+          "vol_anual_pct": 5.87,
+          "max_drawdown_pct": 44.49,
+          "media_diaria_bps": -3.77
+        },
+        "_sin_vix": 0,
+        "_bandas": {
+          "bajo": "VIX < 17.0",
+          "medio": "17.0 ≤ VIX ≤ 21.0",
+          "alto": "VIX > 21.0"
+        }
+      },
+      "diferencia_medio": {
+        "ok": true,
+        "regimen": "medio",
+        "n_dentro": 1066,
+        "n_fuera": 3960,
+        "media_dentro_bps": -4.249,
+        "media_fuera_bps": -0.877,
+        "diferencia_bps": -3.372,
+        "t": -2.27,
+        "p_valor": 0.023309333991599956,
+        "significativa_5pct": true
+      },
+      "por_anio": {
+        "2006": {
+          "retorno_pct": 0.0,
+          "sharpe": 0.0,
+          "trades": 0
+        },
+        "2007": {
+          "retorno_pct": -7.71,
+          "sharpe": -1.37,
+          "trades": 36
+        },
+        "2008": {
+          "retorno_pct": -6.3,
+          "sharpe": -1.71,
+          "trades": 14
+        },
+        "2009": {
+          "retorno_pct": -3.02,
+          "sharpe": -0.48,
+          "trades": 45
+        },
+        "2010": {
+          "retorno_pct": -0.84,
+          "sharpe": -0.12,
+          "trades": 56
+        },
+        "2011": {
+          "retorno_pct": -9.81,
+          "sharpe": -1.61,
+          "trades": 47
+        },
+        "2012": {
+          "retorno_pct": -0.15,
+          "sharpe": -0.02,
+          "trades": 47
+        },
+        "2013": {
+          "retorno_pct": 14.71,
+          "sharpe": 2.35,
+          "trades": 47
+        },
+        "2014": {
+          "retorno_pct": 4.67,
+          "sharpe": 0.74,
+          "trades": 42
+        },
+        "2015": {
+          "retorno_pct": -12.87,
+          "sharpe": -2.21,
+          "trades": 45
+        },
+        "2016": {
+          "retorno_pct": 0.32,
+          "sharpe": 0.07,
+          "trades": 29
+        },
+        "2017": {
+          "retorno_pct": -1.33,
+          "sharpe": -0.27,
+          "trades": 36
+        },
+        "2018": {
+          "retorno_pct": -8.45,
+          "sharpe": -1.25,
+          "trades": 57
+        },
+        "2019": {
+          "retorno_pct": -0.35,
+          "sharpe": -0.06,
+          "trades": 48
+        },
+        "2020": {
+          "retorno_pct": 4.46,
+          "sharpe": 0.73,
+          "trades": 41
+        },
+        "2021": {
+          "retorno_pct": -9.58,
+          "sharpe": -1.52,
+          "trades": 57
+        },
+        "2022": {
+          "retorno_pct": -3.17,
+          "sharpe": -1.24,
+          "trades": 8
+        },
+        "2023": {
+          "retorno_pct": -8.97,
+          "sharpe": -1.29,
+          "trades": 63
+        },
+        "2024": {
+          "retorno_pct": -9.35,
+          "sharpe": -1.55,
+          "trades": 52
+        },
+        "2025": {
+          "retorno_pct": -4.19,
+          "sharpe": -0.73,
+          "trades": 42
+        },
+        "2026": {
+          "retorno_pct": -12.19,
+          "sharpe": -2.81,
+          "trades": 47
+        }
+      }
+    }
+  ],
+  "cartera": {
+    "metricas": {
+      "n": 5026,
+      "retorno_total_pct": -2.07,
+      "cagr_pct": -0.11,
+      "vol_anual_pct": 9.99,
+      "sharpe": -0.01,
+      "sortino": -0.01,
+      "max_drawdown_pct": 40.23,
+      "calmar": -0.0,
+      "hit_rate_pct": 17.5,
+      "trades": 1707,
+      "exposicion_pct": 100.0,
+      "equity_final": 0.9793,
+      "dias_operados_pct": 34.0,
+      "ganadores_pct": 51.6,
+      "profit_factor": 1.01,
+      "retorno_medio_por_trade_bps": 0.46
+    },
+    "t_stat": -0.045,
+    "p_parametrico": 0.9643798421385201,
+    "solo_s": 848,
+    "solo_g": 716,
+    "coinciden": 143
+  }
+}
