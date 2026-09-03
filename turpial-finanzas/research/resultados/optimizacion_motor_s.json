@@ -1,0 +1,499 @@
+{
+  "corrido_utc": "2026-09-03T11:46:01+00:00",
+  "symbol": "^NDX",
+  "riesgo_pct": 0.75,
+  "costo_bps": 1.0,
+  "n_combos": 750,
+  "train": 1512,
+  "test": 504,
+  "mejor_en_muestra": {
+    "params": {
+      "periodo": 14,
+      "atr_drop": 1.0,
+      "close_pos": 0.3,
+      "stop_atr": 0.0,
+      "exigir_ambas": true
+    },
+    "metricas": {
+      "n": 5026,
+      "retorno_total_pct": 48.41,
+      "cagr_pct": 2.0,
+      "vol_anual_pct": 2.11,
+      "sharpe": 0.94,
+      "sortino": 0.42,
+      "max_drawdown_pct": 2.49,
+      "calmar": 0.8,
+      "hit_rate_pct": 3.4,
+      "trades": 285,
+      "exposicion_pct": 100.0,
+      "equity_final": 1.4841,
+      "dias_operados_pct": 5.7,
+      "ganadores_pct": 60.7,
+      "profit_factor": 1.987,
+      "retorno_medio_por_trade_bps": 14.01,
+      "t_stat": 3.5,
+      "p_valor": 0.00047207657872361253
+    },
+    "dsr": {
+      "ok": true,
+      "dsr": 0.996,
+      "sharpe_periodo": 0.05962,
+      "sharpe_max_azar": 0.0262,
+      "n_probadas": 750,
+      "skew": 4.751,
+      "kurtosis": 90.06,
+      "z": 2.656,
+      "n_obs": 5026
+    }
+  },
+  "defecto_en_muestra": {
+    "n": 5026,
+    "retorno_total_pct": 50.48,
+    "cagr_pct": 2.07,
+    "vol_anual_pct": 3.62,
+    "sharpe": 0.57,
+    "sortino": 0.4,
+    "max_drawdown_pct": 7.25,
+    "calmar": 0.29,
+    "hit_rate_pct": 10.7,
+    "trades": 991,
+    "exposicion_pct": 100.0,
+    "equity_final": 1.5048,
+    "dias_operados_pct": 19.7,
+    "ganadores_pct": 54.5,
+    "profit_factor": 1.236,
+    "retorno_medio_por_trade_bps": 4.26,
+    "t_stat": 2.36,
+    "p_valor": 0.01822500939578342
+  },
+  "walk_forward": {
+    "metricas": {
+      "n": 3024,
+      "retorno_total_pct": 15.03,
+      "cagr_pct": 1.17,
+      "vol_anual_pct": 1.79,
+      "sharpe": 0.65,
+      "sortino": 0.24,
+      "max_drawdown_pct": 2.49,
+      "calmar": 0.47,
+      "hit_rate_pct": 2.0,
+      "trades": 107,
+      "exposicion_pct": 100.0,
+      "equity_final": 1.1503,
+      "dias_operados_pct": 3.5,
+      "ganadores_pct": 57.0,
+      "profit_factor": 1.836,
+      "retorno_medio_por_trade_bps": 13.27,
+      "t_stat": 2.05,
+      "p_valor": 0.040764966905822764
+    },
+    "elegidos": [
+      {
+        "desde": 1512,
+        "hasta": 2016,
+        "params": {
+          "periodo": 20,
+          "atr_drop": 1.0,
+          "close_pos": 0.1,
+          "stop_atr": 0.0,
+          "exigir_ambas": true
+        },
+        "score_entrenamiento": 0.09021
+      },
+      {
+        "desde": 2016,
+        "hasta": 2520,
+        "params": {
+          "periodo": 14,
+          "atr_drop": 1.0,
+          "close_pos": 0.4,
+          "stop_atr": 0.0,
+          "exigir_ambas": true
+        },
+        "score_entrenamiento": 0.06414
+      },
+      {
+        "desde": 2520,
+        "hasta": 3024,
+        "params": {
+          "periodo": 14,
+          "atr_drop": 1.5,
+          "close_pos": 0.3,
+          "stop_atr": 0.0,
+          "exigir_ambas": true
+        },
+        "score_entrenamiento": 0.06117
+      },
+      {
+        "desde": 3024,
+        "hasta": 3528,
+        "params": {
+          "periodo": 14,
+          "atr_drop": 1.5,
+          "close_pos": 0.4,
+          "stop_atr": 0.0,
+          "exigir_ambas": true
+        },
+        "score_entrenamiento": 0.07393
+      },
+      {
+        "desde": 3528,
+        "hasta": 4032,
+        "params": {
+          "periodo": 20,
+          "atr_drop": 1.5,
+          "close_pos": 0.3,
+          "stop_atr": 0.0,
+          "exigir_ambas": true
+        },
+        "score_entrenamiento": 0.07929
+      },
+      {
+        "desde": 4032,
+        "hasta": 4536,
+        "params": {
+          "periodo": 14,
+          "atr_drop": 1.0,
+          "close_pos": 0.4,
+          "stop_atr": 0.0,
+          "exigir_ambas": true
+        },
+        "score_entrenamiento": 0.06956
+      }
+    ],
+    "n_ventanas": 6,
+    "defecto_mismos_dias": {
+      "n": 3024,
+      "retorno_total_pct": 33.97,
+      "cagr_pct": 2.47,
+      "vol_anual_pct": 3.77,
+      "sharpe": 0.65,
+      "sortino": 0.44,
+      "max_drawdown_pct": 7.25,
+      "calmar": 0.34,
+      "hit_rate_pct": 11.3,
+      "trades": 612,
+      "exposicion_pct": 100.0,
+      "equity_final": 1.3397,
+      "dias_operados_pct": 20.2,
+      "ganadores_pct": 55.7,
+      "profit_factor": 1.273,
+      "retorno_medio_por_trade_bps": 4.92,
+      "t_stat": 2.05,
+      "p_valor": 0.040764966905822764
+    },
+    "p_empirico_vs_azar": 0.31840796019900497,
+    "nulo_azar": {
+      "media": 0.5560500000000005,
+      "n": 200
+    }
+  },
+  "estabilidad": {
+    "periodo": {
+      "valores": [
+        20,
+        14,
+        14,
+        14,
+        20,
+        14
+      ],
+      "moda": "14",
+      "estabilidad_pct": 66.7
+    },
+    "atr_drop": {
+      "valores": [
+        1.0,
+        1.0,
+        1.5,
+        1.5,
+        1.5,
+        1.0
+      ],
+      "moda": "1.0",
+      "estabilidad_pct": 50.0
+    },
+    "close_pos": {
+      "valores": [
+        0.1,
+        0.4,
+        0.3,
+        0.4,
+        0.3,
+        0.4
+      ],
+      "moda": "0.4",
+      "estabilidad_pct": 50.0
+    },
+    "stop_atr": {
+      "valores": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "moda": "0.0",
+      "estabilidad_pct": 100.0
+    },
+    "exigir_ambas": {
+      "valores": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "moda": "True",
+      "estabilidad_pct": 100.0
+    }
+  },
+  "variantes_dirigidas": {
+    "defecto del EA (SL 2 ATR, A o B)": {
+      "oos": {
+        "n": 3024,
+        "retorno_total_pct": 33.97,
+        "cagr_pct": 2.47,
+        "vol_anual_pct": 3.77,
+        "sharpe": 0.65,
+        "sortino": 0.44,
+        "max_drawdown_pct": 7.25,
+        "calmar": 0.34,
+        "hit_rate_pct": 11.3,
+        "trades": 612,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.3397,
+        "dias_operados_pct": 20.2,
+        "ganadores_pct": 55.7,
+        "profit_factor": 1.273,
+        "retorno_medio_por_trade_bps": 4.92
+      },
+      "completo": {
+        "n": 5026,
+        "retorno_total_pct": 50.48,
+        "cagr_pct": 2.07,
+        "vol_anual_pct": 3.62,
+        "sharpe": 0.57,
+        "sortino": 0.4,
+        "max_drawdown_pct": 7.25,
+        "calmar": 0.29,
+        "hit_rate_pct": 10.7,
+        "trades": 991,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.5048,
+        "dias_operados_pct": 19.7,
+        "ganadores_pct": 54.5,
+        "profit_factor": 1.236,
+        "retorno_medio_por_trade_bps": 4.26
+      },
+      "peor_dia_pct": -1.52
+    },
+    "+ exigir AMBAS condiciones": {
+      "oos": {
+        "n": 3024,
+        "retorno_total_pct": 21.07,
+        "cagr_pct": 1.61,
+        "vol_anual_pct": 2.18,
+        "sharpe": 0.73,
+        "sortino": 0.3,
+        "max_drawdown_pct": 3.44,
+        "calmar": 0.47,
+        "hit_rate_pct": 3.0,
+        "trades": 160,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.2107,
+        "dias_operados_pct": 5.3,
+        "ganadores_pct": 56.9,
+        "profit_factor": 1.74,
+        "retorno_medio_por_trade_bps": 12.13
+      },
+      "completo": {
+        "n": 5026,
+        "retorno_total_pct": 39.98,
+        "cagr_pct": 1.7,
+        "vol_anual_pct": 2.01,
+        "sharpe": 0.84,
+        "sortino": 0.35,
+        "max_drawdown_pct": 3.44,
+        "calmar": 0.49,
+        "hit_rate_pct": 3.1,
+        "trades": 257,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.3998,
+        "dias_operados_pct": 5.1,
+        "ganadores_pct": 60.3,
+        "profit_factor": 1.912,
+        "retorno_medio_por_trade_bps": 13.24
+      },
+      "peor_dia_pct": -1.51
+    },
+    "+ sin stop": {
+      "oos": {
+        "n": 3024,
+        "retorno_total_pct": 36.07,
+        "cagr_pct": 2.6,
+        "vol_anual_pct": 3.75,
+        "sharpe": 0.68,
+        "sortino": 0.47,
+        "max_drawdown_pct": 7.45,
+        "calmar": 0.35,
+        "hit_rate_pct": 11.3,
+        "trades": 612,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.3607,
+        "dias_operados_pct": 20.2,
+        "ganadores_pct": 55.7,
+        "profit_factor": 1.291,
+        "retorno_medio_por_trade_bps": 5.17
+      },
+      "completo": {
+        "n": 5026,
+        "retorno_total_pct": 53.54,
+        "cagr_pct": 2.17,
+        "vol_anual_pct": 3.6,
+        "sharpe": 0.6,
+        "sortino": 0.42,
+        "max_drawdown_pct": 7.45,
+        "calmar": 0.29,
+        "hit_rate_pct": 10.7,
+        "trades": 991,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.5354,
+        "dias_operados_pct": 19.7,
+        "ganadores_pct": 54.5,
+        "profit_factor": 1.25,
+        "retorno_medio_por_trade_bps": 4.46
+      },
+      "peor_dia_pct": -1.82
+    },
+    "+ ambas Y sin stop": {
+      "oos": {
+        "n": 3024,
+        "retorno_total_pct": 22.36,
+        "cagr_pct": 1.7,
+        "vol_anual_pct": 2.15,
+        "sharpe": 0.78,
+        "sortino": 0.34,
+        "max_drawdown_pct": 3.44,
+        "calmar": 0.49,
+        "hit_rate_pct": 3.0,
+        "trades": 160,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.2236,
+        "dias_operados_pct": 5.3,
+        "ganadores_pct": 56.9,
+        "profit_factor": 1.813,
+        "retorno_medio_por_trade_bps": 12.79
+      },
+      "completo": {
+        "n": 5026,
+        "retorno_total_pct": 41.48,
+        "cagr_pct": 1.75,
+        "vol_anual_pct": 1.99,
+        "sharpe": 0.87,
+        "sortino": 0.38,
+        "max_drawdown_pct": 3.44,
+        "calmar": 0.51,
+        "hit_rate_pct": 3.1,
+        "trades": 257,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.4148,
+        "dias_operados_pct": 5.1,
+        "ganadores_pct": 60.3,
+        "profit_factor": 1.968,
+        "retorno_medio_por_trade_bps": 13.66
+      },
+      "peor_dia_pct": -1.73
+    },
+    "+ ambas, stop ancho 3 ATR": {
+      "oos": {
+        "n": 3024,
+        "retorno_total_pct": 22.36,
+        "cagr_pct": 1.7,
+        "vol_anual_pct": 2.15,
+        "sharpe": 0.78,
+        "sortino": 0.34,
+        "max_drawdown_pct": 3.44,
+        "calmar": 0.49,
+        "hit_rate_pct": 3.0,
+        "trades": 160,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.2236,
+        "dias_operados_pct": 5.3,
+        "ganadores_pct": 56.9,
+        "profit_factor": 1.813,
+        "retorno_medio_por_trade_bps": 12.79
+      },
+      "completo": {
+        "n": 5026,
+        "retorno_total_pct": 41.48,
+        "cagr_pct": 1.75,
+        "vol_anual_pct": 1.99,
+        "sharpe": 0.87,
+        "sortino": 0.38,
+        "max_drawdown_pct": 3.44,
+        "calmar": 0.51,
+        "hit_rate_pct": 3.1,
+        "trades": 257,
+        "exposicion_pct": 100.0,
+        "equity_final": 1.4148,
+        "dias_operados_pct": 5.1,
+        "ganadores_pct": 60.3,
+        "profit_factor": 1.968,
+        "retorno_medio_por_trade_bps": 13.66
+      },
+      "peor_dia_pct": -1.73
+    }
+  },
+  "recomendado": {
+    "params": {
+      "periodo": 14,
+      "atr_drop": 1.0,
+      "close_pos": 0.4,
+      "stop_atr": 0.0,
+      "exigir_ambas": true
+    },
+    "oos": {
+      "n": 3024,
+      "retorno_total_pct": 28.51,
+      "cagr_pct": 2.11,
+      "vol_anual_pct": 2.34,
+      "sharpe": 0.89,
+      "sortino": 0.41,
+      "max_drawdown_pct": 2.49,
+      "calmar": 0.85,
+      "hit_rate_pct": 3.7,
+      "trades": 190,
+      "exposicion_pct": 100.0,
+      "equity_final": 1.2851,
+      "dias_operados_pct": 6.3,
+      "ganadores_pct": 59.5,
+      "profit_factor": 1.855,
+      "retorno_medio_por_trade_bps": 13.37,
+      "t_stat": 2.61,
+      "p_valor": 0.009071790021285553
+    },
+    "completo": {
+      "n": 5026,
+      "retorno_total_pct": 48.83,
+      "cagr_pct": 2.01,
+      "vol_anual_pct": 2.14,
+      "sharpe": 0.93,
+      "sortino": 0.43,
+      "max_drawdown_pct": 2.49,
+      "calmar": 0.81,
+      "hit_rate_pct": 3.6,
+      "trades": 299,
+      "exposicion_pct": 100.0,
+      "equity_final": 1.4883,
+      "dias_operados_pct": 5.9,
+      "ganadores_pct": 60.9,
+      "profit_factor": 1.935,
+      "retorno_medio_por_trade_bps": 13.45,
+      "t_stat": 3.47,
+      "p_valor": 0.0005200759218411122
+    }
+  }
+}

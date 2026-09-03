@@ -14,7 +14,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from quant import backtest, intradia, markov, momentum, ou, pairs, regimen_vol, scan  # noqa: E402
+from quant import (backtest, intradia, markov, momentum, optimizacion, ou, pairs,  # noqa: E402
+                   regimen_vol, scan)
 from quant.stats import chi2_sf, normal_cdf, ols, quantile  # noqa: E402
 from quant.strategies import FLAT, LONG, SHORT, ou_position, regime_allows  # noqa: E402
 
@@ -565,6 +566,56 @@ def test_nulo_intradia_conserva_la_cantidad_de_trades():
                                          repeticiones=20, cost_bps=0.0)
     assert nulo["ok"] and nulo["n"] == 20
     assert nulo["p05"] <= nulo["p50"] <= nulo["p95"]
+
+
+# --------------------------------------------- optimización sin autoengaño
+def test_grilla_y_ventanas():
+    g = optimizacion.grilla({"a": [1, 2, 3], "b": [0.1, 0.2]})
+    assert len(g) == 6 and {"a": 2, "b": 0.1} in g
+    v = optimizacion.ventanas_walk_forward(100, 40, 10)
+    assert len(v) == 6
+    for tr, te in v:                       # la prueba SIEMPRE va después del entrenamiento
+        assert tr.stop == te.start and te.stop <= 100
+
+
+def test_sharpe_desinflado_castiga_probar_mucho():
+    """Los mismos retornos valen menos si se llegó a ellos probando 500 combinaciones."""
+    rng = random.Random(3)
+    rets = [rng.gauss(0.0005, 0.01) for _ in range(2000)]
+    una = optimizacion.sharpe_desinflado(rets, [0.0, 0.001])
+    muchas = optimizacion.sharpe_desinflado(rets, [rng.gauss(0, 0.02) for _ in range(500)])
+    assert una["ok"] and muchas["ok"]
+    assert muchas["dsr"] < una["dsr"]
+    assert muchas["sharpe_max_azar"] > una["sharpe_max_azar"]
+
+
+def test_walk_forward_no_optimiza_sobre_lo_que_mide():
+    """El tramo de prueba nunca debe influir en la elección de parámetros.
+
+    Se arma una serie donde el combo A gana sólo en la primera mitad y el B sólo en la
+    segunda. Un optimizador correcto elige A mirando el pasado y cobra el resultado de A
+    en el futuro — o sea, pierde. Uno con fuga elegiría B y ganaría.
+    """
+    n = 400
+    datos = {"A": [1.0 if i < 200 else -1.0 for i in range(n)],
+             "B": [-1.0 if i < 200 else 1.0 for i in range(n)]}
+    combos = [{"c": "A"}, {"c": "B"}]
+    correr = lambda combo, idx: [datos[combo["c"]][i] for i in idx]  # noqa: E731
+    r = optimizacion.optimizar_walk_forward(n, combos, correr, train=200, test=100,
+                                            criterio=lambda x: sum(x))
+    assert r["ok"]
+    # Entrena en [0,200) donde gana A, y cobra A en [200,300): pierde.
+    assert r["elegidos"][0]["params"]["c"] == "A"
+    assert sum(r["retornos_oos"][:100]) < 0
+
+
+def test_estabilidad_es_determinista():
+    elegidos = [{"params": {"x": 1}}, {"params": {"x": 2}}, {"params": {"x": 1}},
+                {"params": {"x": 2}}]
+    modas = {optimizacion.estabilidad(elegidos)["x"]["moda"] for _ in range(20)}
+    assert len(modas) == 1          # el empate se resuelve siempre igual
+    est = optimizacion.estabilidad([{"params": {"x": 5}}] * 4)
+    assert est["x"]["estabilidad_pct"] == 100.0
 
 
 def main() -> int:

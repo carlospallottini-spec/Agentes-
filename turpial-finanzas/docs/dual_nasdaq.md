@@ -117,6 +117,141 @@ algo. **Si operás el motor S, la banda 17-21 no es su amiga.**
 
 ---
 
+# Optimización del motor S
+
+Pedido: optimizarlo y bajar el riesgo a 0,75 %. Lo hice de la única forma que no destruye
+la estrategia: **walk-forward** con validación fuera de muestra y corrección por la
+cantidad de combinaciones probadas.
+
+```bash
+python research/optimizar_motor_s.py --guardar
+```
+
+750 combinaciones (`periodo` × `atr_drop` × `close_pos` × `stop_atr` × `exigir_ambas`),
+6 ventanas de entrenamiento de 6 años, midiendo siempre en los 2 años siguientes.
+**12 años fuera de muestra.**
+
+## Primero, sobre el riesgo 0,75 %
+
+Bajar el riesgo **no mejora el Sharpe**: es invariante de escala. Divide a la mitad el
+retorno y el drawdown, y deja el cociente igual. Es una decisión de riesgo, no de
+rendimiento — y me parece la correcta, pero conviene saber qué compra y qué no.
+
+Y hay una trampa en el nombre del parámetro: `InpS_RiskPct` es **exposición por ATR**, no
+riesgo por operación. Con el stop a 3 ATR, 0,75 % de exposición son **~2,25 % de riesgo
+real** por trade. Con el default original (1,5 % y stop a 2 ATR) eran 3 %.
+
+## El resultado principal: optimizar no sirvió
+
+| | Sharpe fuera de muestra |
+|---|---|
+| Combinación optimizada en cada ventana | **+0,65** |
+| Parámetros por defecto del EA | **+0,65** |
+| **Ganancia de optimizar** | **+0,000** |
+
+Cero. Doce años fuera de muestra, 750 combinaciones por ventana, y no le ganó a dejar los
+parámetros como estaban.
+
+Y tampoco le gana al azar: eligiendo una combinación **cualquiera** de la grilla en cada
+ventana, el Sharpe medio es +0,56 y el p95 es +0,83. El optimizado (+0,65) queda en el
+**p empírico 0,32**. Optimizar no aportó información.
+
+Eso, leído al derecho, es una buena noticia sobre la estrategia: **el edge no depende de
+los parámetros**. Casi cualquier combinación de la grilla funciona parecido, que es
+exactamente lo que se espera de un efecto real y lo contrario de una curva ajustada.
+
+### El espejismo de optimizar sobre todo
+
+Barrer los 20 años y quedarse con la mejor da Sharpe **+0,94** — contra +0,57 del defecto.
+Parece una mejora del 65 %. No lo es: fuera de muestra ese mismo procedimiento cae a
++0,65. **La diferencia entre 0,94 y 0,65 es el precio de mirar la respuesta antes de
+contestar.**
+
+El Sharpe desinflado (Bailey y López de Prado), que descuenta por las 750 pruebas, da
+DSR = 0,996 sobre la muestra completa. O sea: el efecto base existe. Lo que no existe es
+la mejora que aporta elegir la mejor combinación.
+
+## Lo único que sí cambió: dos parámetros unánimes
+
+De los cinco parámetros, dos salieron **idénticos en las 6 ventanas de entrenamiento**:
+
+| Parámetro | Elegido | Estabilidad |
+|---|---|---|
+| `exigir_ambas` | **True** | **6/6 (100 %)** |
+| `stop_atr` | 0 (sin stop) | **6/6 (100 %)** |
+| `periodo` | 14 | 4/6 (67 %) |
+| `atr_drop` | — | 3/6 (50 %) |
+| `close_pos` | — | 3/6 (50 %) |
+
+Los tres de abajo saltan de ventana en ventana: ruido. Los dos de arriba, no. Probados
+como hipótesis puntuales sobre el defecto, cambiando una cosa por vez:
+
+| Variante | Sharpe OOS | Sharpe 20 a | maxDD | PF | Trades | Peor día |
+|---|---|---|---|---|---|---|
+| Defecto del EA | 0,65 | 0,57 | 7,2 % | 1,24 | 991 | −1,52 % |
+| **+ exigir AMBAS** | **0,73** | **0,84** | **3,4 %** | 1,91 | 257 | −1,51 % |
+| + sin stop | 0,68 | 0,60 | 7,5 % | 1,25 | 991 | −1,82 % |
+| **+ ambas y sin stop** | **0,78** | **0,87** | **3,4 %** | 1,97 | 257 | −1,73 % |
+| **+ ambas, stop 3 ATR** | **0,78** | **0,87** | **3,4 %** | 1,97 | 257 | −1,73 % |
+
+**Exigir ambas condiciones es el cambio que vale.** Sube el Sharpe y —más importante—
+**parte el drawdown al medio: 7,2 % → 3,4 %**. El precio es operar 4 veces menos: de 991 a
+257 operaciones en 20 años, unas 13 por año.
+
+Honestidad sobre la magnitud: la mejora de Sharpe (+0,08 fuera de muestra) está dentro del
+ruido como diferencia — con 12 años el error estándar es ~0,29. Lo que **no** es ruido es
+la unanimidad 6/6 en ventanas de entrenamiento independientes, ni la caída del drawdown a
+la mitad, que es un estadístico mucho más estable que el Sharpe.
+
+### El stop: por qué 3 ATR y no cero
+
+El backtest prefiere no tener stop (+0,05 de Sharpe). Pero **con stop a 3 ATR el resultado
+es idéntico al de no tenerlo**: mismo Sharpe, mismos 257 trades, mismo peor día (−1,73 %).
+A esa distancia el stop casi nunca salta.
+
+O sea que se puede conservar el seguro contra una caída violenta **sin pagar nada**.
+Quitarlo del todo sería regalar la cola a cambio de +0,00. Con hasta 3× de apalancamiento
+y sin stop, un día tipo 2008 no se arregla con esperanza matemática.
+
+## Parámetros finales
+
+```
+InpS_RiskPct     = 0.75    (pedido; ojo: exposición por ATR, no riesgo por trade)
+InpS_RequireBoth = true    (unánime en 6/6 ventanas; drawdown a la mitad)
+InpS_StopATR     = 3.00    (idéntico a no tener stop, pero conserva el seguro)
+InpS_ATRDrop     = 1.00    (sin cambios: no hay evidencia para tocarlo)
+InpS_ClosePos    = 0.20    (sin cambios)
+InpS_ATRPeriod   = 14      (sin cambios)
+```
+
+El EA está en
+[`trading/mt5/SessionMarkov_EA.mq5`](../trading/mt5/SessionMarkov_EA.mq5), aislado del
+motor G. Además del cambio de parámetros: se sacó el `Sleep()` de `OnTick` (bloqueaba
+hasta 2 segundos en la apertura de NY) y se le dio margen al pedido de historial M5, que
+con el margen anterior dejaba de operar en silencio si el bróker tenía huecos.
+
+Medido sobre el índice Nasdaq 100, 2006-2026, 1 bp de costo y riesgo 0,75 %:
+
+| | Fuera de muestra (12 a) | Serie completa (20 a) |
+|---|---|---|
+| Sharpe | +0,78 | +0,87 |
+| CAGR | +1,70 % | +1,75 % |
+| Max drawdown | 3,4 % | 3,4 % |
+| Profit factor | 1,97 | 1,97 |
+| Operaciones | 160 | 257 |
+
+## Dónde sigue rompiéndose
+
+**En los costos, igual que antes.** La ganancia media por operación es de pocos puntos
+básicos. Sigue vigente: medí el spread real de tu símbolo entre 9:30 y 9:50 ET. Con
+`exigir_ambas` se opera 4 veces menos, así que el costo total baja — pero cada operación
+tiene que seguir pagándolo.
+
+Y un límite nuevo: **13 operaciones por año**. Cualquier conclusión sobre el año que viene
+se apoya en una docena de datos.
+
+---
+
 ## Revisión del código
 
 Lo que encontré leyendo los dos `.mq5`, ordenado por lo que más importa.

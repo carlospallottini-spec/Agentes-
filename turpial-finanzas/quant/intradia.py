@@ -52,19 +52,30 @@ def atr_sesion(ohlc: list[dict], t: int, periodo: int = 14) -> float | None:
     return atr if atr > 0 else None
 
 
+def atr_serie(ohlc: list[dict], periodo: int = 14) -> list[float | None]:
+    """ATR de sesión para cada índice, calculado una sola vez.
+
+    Recalcularlo dentro de un barrido de parámetros es el 90% del costo; con esto una
+    optimización de cientos de combinaciones pasa de minutos a segundos.
+    """
+    return [atr_sesion(ohlc, t, periodo) for t in range(len(ohlc))]
+
+
 def señal_session_markov(ohlc: list[dict], periodo: int = 14, atr_drop: float = 1.0,
-                         close_pos: float = 0.20, exigir_ambas: bool = False) -> list[bool]:
+                         close_pos: float = 0.20, exigir_ambas: bool = False,
+                         atr: list[float | None] | None = None) -> list[bool]:
     """Máscara de días en que el motor S compraría, con los datos de la sesión anterior."""
     mask = [False] * len(ohlc)
+    serie_atr = atr if atr is not None else atr_serie(ohlc, periodo)
     for t in range(periodo + 2, len(ohlc)):
-        atr = atr_sesion(ohlc, t, periodo)
-        if atr is None:
+        atr_t = serie_atr[t]
+        if atr_t is None:
             continue
         ayer = ohlc[t - 1]
         rango = ayer["h"] - ayer["l"]
         if rango <= 0:
             continue
-        mov = (ayer["c"] - ayer["o"]) / atr
+        mov = (ayer["c"] - ayer["o"]) / atr_t
         pos = (ayer["c"] - ayer["l"]) / rango
         a, b = mov <= -atr_drop, pos <= close_pos
         mask[t] = (a and b) if exigir_ambas else (a or b)
@@ -87,7 +98,8 @@ def señal_gap_fade(ohlc: list[dict], min_gap: float = 0.30, max_gap: float = 2.
 
 def simular_session_markov(ohlc: list[dict], mask: list[bool], periodo: int = 14,
                            riesgo_pct: float = 1.5, stop_atr: float = 2.0,
-                           max_leverage: float = 3.0, cost_bps: float = 1.0) -> dict:
+                           max_leverage: float = 3.0, cost_bps: float = 1.0,
+                           atr: list[float | None] | None = None) -> dict:
     """P&L diario del motor S: entra en la apertura, stop en ATR, sale en el cierre.
 
     Dimensionamiento del EA: 1 ATR de movimiento = `riesgo_pct` % del capital, con tope
@@ -95,18 +107,19 @@ def simular_session_markov(ohlc: list[dict], mask: list[bool], periodo: int = 14
     """
     rets = [0.0] * len(ohlc)
     trades = 0
+    serie_atr = atr if atr is not None else atr_serie(ohlc, periodo)
     for t in range(len(ohlc)):
         if not mask[t]:
             continue
-        atr = atr_sesion(ohlc, t, periodo)
-        if atr is None:
+        atr_t = serie_atr[t]
+        if atr_t is None:
             continue
         d = ohlc[t]
         entrada = d["o"]
         if entrada <= 0:
             continue
-        apal = min(riesgo_pct / 100.0 * entrada / atr, max_leverage)
-        stop = entrada - stop_atr * atr if stop_atr > 0 else None
+        apal = min(riesgo_pct / 100.0 * entrada / atr_t, max_leverage)
+        stop = entrada - stop_atr * atr_t if stop_atr > 0 else None
         salida = stop if (stop is not None and d["l"] <= stop) else d["c"]
         rets[t] = apal * ((salida - entrada) / entrada - 2.0 * cost_bps / 10_000.0)
         trades += 1
