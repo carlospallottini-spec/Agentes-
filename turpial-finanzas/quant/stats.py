@@ -201,3 +201,20 @@ def normal_ppf(p: float) -> float:
     r = q * q
     return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / \
            (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
+
+
+def wilson(exitos: int, total: int, z: float = 1.96) -> tuple[float, float]:
+    """Intervalo de confianza de Wilson para una proporción.
+
+    Se usa en vez de la aproximación normal (p ± z·√(p(1−p)/n)) porque con muestras
+    chicas o proporciones cerca de 0 o 1 esa fórmula devuelve intervalos que se salen
+    de [0,1] y subestima la incertidumbre. Con 3 de 4 aciertos la normal da 75% ± 42%;
+    Wilson da [30%, 95%], que es la respuesta honesta.
+    """
+    if total <= 0:
+        return (0.0, 1.0)
+    p = exitos / total
+    d = 1.0 + z * z / total
+    centro = (p + z * z / (2.0 * total)) / d
+    margen = z * math.sqrt(p * (1.0 - p) / total + z * z / (4.0 * total * total)) / d
+    return (max(0.0, centro - margen), min(1.0, centro + margen))

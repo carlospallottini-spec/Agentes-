@@ -15,8 +15,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from quant import (backtest, intradia, markov, momentum, niveles, opciones,  # noqa: E402
-                   optimizacion, ou, pairs, regimen_vol, scan)
+                   optimizacion, ou, pairs, regimen_vol, scan, toques)
 from quant.stats import chi2_sf, normal_cdf, ols, quantile  # noqa: E402
+from quant.stats import wilson as stats_wilson  # noqa: E402
 from quant.strategies import FLAT, LONG, SHORT, ou_position, regime_allows  # noqa: E402
 
 
@@ -753,6 +754,150 @@ def test_filtro_de_cercania_descarta_coberturas_lejanas():
     muro = [n for n in r["niveles"] if n["nombre"] == "Muro de puts"][0]
     assert muro["strike"] == 7700.0      # no el de 6200, aunque tenga 20 veces más OI
     assert r["n_strikes_cerca"] < r["n_strikes"]
+
+
+# --------------------------------------- estadística de toques de nivel
+def test_wilson_es_honesto_con_muestras_chicas():
+    """La aproximación normal se sale de [0,1]; Wilson no."""
+    lo, hi = stats_wilson(3, 4)
+    assert 0.0 <= lo < 0.75 < hi <= 1.0
+    assert hi - lo > 0.5               # con 4 datos la incertidumbre es enorme
+    lo2, hi2 = stats_wilson(300, 400)
+    assert hi2 - lo2 < 0.1             # con 400 se angosta
+    # Los extremos quedan acotados en vez de colapsar a un punto.
+    assert stats_wilson(0, 10)[1] > 0.0
+    assert stats_wilson(10, 10)[0] < 1.0
+
+
+def _sesion_sintetica(ohlc_rth, dia="2026-07-15"):
+    """Arma barras de 5 minutos dentro del RTH de Nueva York para un día dado."""
+    import calendar
+    y, m, d = (int(x) for x in dia.split("-"))
+    base = calendar.timegm((y, m, d, 13, 35, 0, 0, 0, 0))   # 9:35 NY en julio
+    return [{"t": base + i * 300, "o": o, "h": h, "l": lo, "c": c, "v": 100}
+            for i, (o, h, lo, c) in enumerate(ohlc_rth)]
+
+
+def test_toque_que_aguanta_y_toque_que_rompe():
+    """Desde abajo el nivel es resistencia: alejarse = aguantó, pasarlo = rompió."""
+    nivel = {"N": 100.0}
+    # Llega desde abajo, toca 100 y se cae a 97: aguantó (margen = 0.25·ATR = 2.5)
+    aguanta = _sesion_sintetica([(95, 96, 94, 95), (96, 100, 96, 99),
+                                 (99, 99, 97, 97), (97, 97, 96, 96)])
+    acc = {}
+    toques._recorrer_sesion(aguanta, nivel, 10.0, 0.10, 0.25, 24, acc)
+    assert acc["N"]["toques"] == 1 and acc["N"]["aguanto"] == 1 and acc["N"]["rompio"] == 0
+
+    # Mismo arranque pero sigue a 103: rompió
+    rompe = _sesion_sintetica([(95, 96, 94, 95), (96, 100, 96, 99),
+                               (99, 103, 99, 103), (103, 104, 102, 103)])
+    acc2 = {}
+    toques._recorrer_sesion(rompe, nivel, 10.0, 0.10, 0.25, 24, acc2)
+    assert acc2["N"]["toques"] == 1 and acc2["N"]["rompio"] == 1 and acc2["N"]["aguanto"] == 0
+
+
+def test_vela_ambigua_no_se_decide():
+    """Si una sola vela cumple las dos condiciones, no se sabe cuál pasó primero."""
+    barras = _sesion_sintetica([(95, 96, 94, 95), (96, 100, 96, 99),
+                                (99, 104, 96, 100)])     # esa vela va a +4 y a −3
+    acc = {}
+    toques._recorrer_sesion(barras, {"N": 100.0}, 10.0, 0.10, 0.25, 24, acc)
+    assert acc["N"]["ambiguos"] == 1
+    assert acc["N"]["aguanto"] == 0 and acc["N"]["rompio"] == 0
+
+
+def test_toque_sin_resolver_no_suma_a_ningun_lado():
+    barras = _sesion_sintetica([(95, 96, 94, 95), (96, 100, 96, 99)] +
+                               [(99, 100, 99, 99)] * 8)   # queda pegado al nivel
+    acc = {}
+    toques._recorrer_sesion(barras, {"N": 100.0}, 10.0, 0.10, 0.25, 3, acc)
+    assert acc["N"]["toques"] == 1
+    assert acc["N"]["aguanto"] == 0 and acc["N"]["rompio"] == 0
+    assert acc["N"]["sin_resolver"] >= 1
+
+
+def test_enfriamiento_no_recuenta_una_consolidacion_pegada_al_nivel():
+    """Un toque resuelto no se vuelve a contar hasta que el precio se aleja.
+
+    Sin enfriamiento, una consolidación de una hora sobre el nivel registraba un toque por
+    vela y la muestra se inflaba sola. El criterio es: el toque cuenta de nuevo recién
+    cuando una vela deja de tocar la banda de tolerancia.
+    """
+    # Toca 100 desde abajo, aguanta (cae a 97), y se queda pegado al nivel 6 velas más.
+    barras = _sesion_sintetica([(95, 96, 94, 95), (96, 100, 96, 99), (99, 99, 97, 97)] +
+                               [(99, 100, 99, 99)] * 6)
+    acc = {}
+    toques._recorrer_sesion(barras, {"N": 100.0}, 10.0, 0.10, 0.25, 24, acc)
+    assert acc["N"]["aguanto"] == 1
+    assert acc["N"]["toques"] == 1, f"se recontó la consolidación: {acc['N']}"
+
+    # En cambio, si el precio SE ALEJA y vuelve, eso sí es un toque nuevo.
+    barras = _sesion_sintetica([(95, 96, 94, 95), (96, 100, 96, 99), (99, 99, 97, 97),
+                                (97, 97, 90, 91),    # se va lejos: se arma de nuevo
+                                (91, 100, 91, 99), (99, 99, 97, 97)])
+    acc = {}
+    toques._recorrer_sesion(barras, {"N": 100.0}, 10.0, 0.10, 0.25, 24, acc)
+    assert acc["N"]["toques"] == 2, f"no reconoció el segundo acercamiento: {acc['N']}"
+    assert acc["N"]["aguanto"] == 2
+
+
+def test_direccion_de_aproximacion():
+    """Desde arriba el nivel es soporte y las condiciones se dan vuelta."""
+    # Viene de arriba (105), toca 100 y sube a 103: para un soporte eso es AGUANTAR
+    barras = _sesion_sintetica([(105, 106, 104, 105), (104, 104, 100, 101),
+                                (101, 103, 101, 103)])
+    acc = {}
+    toques._recorrer_sesion(barras, {"N": 100.0}, 10.0, 0.10, 0.25, 24, acc)
+    assert acc["N"]["aguanto"] == 1
+    assert "desde_arriba" in str(acc["N"]["por_direccion"])
+
+
+def test_el_procedimiento_tiene_sesgo_y_queda_documentado():
+    """Niveles AL AZAR sobre un paseo aleatorio dan muy por encima del 50%.
+
+    Esto NO es un error: es la propiedad que obliga a comparar siempre contra el
+    control. Una vela que toca un nivel desde abajo suele cerrar por debajo, así que
+    arranca más cerca de la condición de 'aguantó'. Si alguien 'arregla' el motor para
+    que dé 50%, habrá cambiado la definición, no corregido un bug.
+    """
+    rng = random.Random(4)
+    px = 100.0
+    barras = []
+    import calendar
+    base = calendar.timegm((2026, 7, 15, 13, 35, 0, 0, 0, 0))
+    for i in range(300):
+        o = px
+        h = o + abs(rng.gauss(0, 0.4))
+        lo = o - abs(rng.gauss(0, 0.4))
+        c = rng.uniform(lo, h)
+        barras.append({"t": base + i * 300, "o": o, "h": h, "l": lo, "c": c, "v": 10})
+        px = c
+    acc = {}
+    # Cinco niveles repartidos por el rango recorrido
+    precios = {f"L{j}": 98.0 + j * 1.0 for j in range(5)}
+    toques._recorrer_sesion(barras, precios, 2.0, 0.10, 0.25, 24, acc)
+    res = sum(a["aguanto"] + a["rompio"] for a in acc.values())
+    ag = sum(a["aguanto"] for a in acc.values())
+    assert res >= 20, "el fixture debería producir toques suficientes"
+    tasa = ag / res
+    assert tasa > 0.55, (f"el sesgo del procedimiento debería elevar la tasa muy por "
+                         f"encima del 50%; dio {tasa:.2%}")
+
+
+def test_contra_el_nulo_marca_lo_que_no_informa():
+    """Un nivel con tasa igual a la del control no puede declararse informativo."""
+    rep = {"ok": True,
+           "global": {"tasa_aguante": 73.0},
+           "niveles": [{"nivel": "A", "resueltos": 100, "aguanto": 73, "toques": 100,
+                        "suficiente": True},
+                       {"nivel": "B", "resueltos": 100, "aguanto": 95, "toques": 100,
+                        "suficiente": True}]}
+    nulo = {"ok": True, "media": 73.0, "tasas": [73.0] * 50}
+    r = toques.contra_el_nulo(rep, nulo)
+    a, b = r["niveles"]
+    assert a["exceso"] == 0.0 and a["informativo"] is False
+    assert b["exceso"] > 20 and b["supera_azar"] is True
+    assert r["niveles_informativos"] == 1
 
 
 def main() -> int:

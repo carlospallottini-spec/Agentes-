@@ -66,6 +66,16 @@ colVWAP     = input.color(#8a98b5, "VWAP",            group=grpC)
 anchoLinea  = input.int(1, "Grosor de línea", minval=1, maxval=4, group=grpC)
 barrasExt   = input.int(60, "Extender N barras a la derecha", minval=10, maxval=500, group=grpC)
 
+grpE = "Estadística de toques"
+verStats    = input.bool(true,  "Contar toques y tasa de aguante", group=grpE)
+tolATR      = input.float(0.10, "Tolerancia del toque (× ATR)", minval=0.01, maxval=1.0, step=0.01, group=grpE)
+margenATR   = input.float(0.25, "Margen de resolución (× ATR)", minval=0.05, maxval=2.0, step=0.05, group=grpE)
+maxBarrasRes= input.int(24, "Barras máximas para resolver", minval=3, maxval=200, group=grpE)
+nControl    = input.int(2, "Niveles de CONTROL al azar", minval=0, maxval=5, group=grpE,
+     tooltip="Líneas puestas al azar dentro del rango, medidas con las mismas reglas. " +
+             "Sirven de base de comparación: si tus niveles no le ganan a esto, la tasa " +
+             "alta es del método de medición y no del nivel.")
+
 grpA = "Alertas"
 avisarCruce = input.bool(true, "Avisar cuando el precio cruza un nivel", group=grpA)
 margenAviso = input.float(0.0, "Margen del aviso (puntos)", minval=0.0, group=grpA)
@@ -172,6 +182,126 @@ s2 = na(pp) ? na : pp - rg
 r3 = na(pp) ? na : prevH + 2 * (pp - prevL)
 s3 = na(pp) ? na : prevL - 2 * (prevH - pp)
 
+// ──────────────── Estadística de toques: ¿aguanta o se rompe? ────────────────
+// Un nivel dibujado no dice nada solo. Lo que importa es: de las veces que el
+// precio llegó hasta acá, ¿cuántas rebotó?
+//
+// ATENCIÓN AL CONTROL. El procedimiento tiene un sesgo propio: una vela que toca
+// una resistencia desde abajo suele cerrar por debajo del nivel, así que arranca
+// más cerca de la condición de "aguantó" que de la de "rompió". Medido sobre ES
+// y NQ, niveles puestos AL AZAR dentro del rango dan ~73% de aguante — más que
+// los niveles reales. Por eso el indicador sigue también líneas de control al
+// azar y las muestra en la tabla: la tasa absoluta engaña, el exceso sobre el
+// control es lo único que informa.
+type Seguidor
+    string nombre
+    float  precio
+    int    toques
+    int    aguanto
+    int    rompio
+    int    ambiguos
+    bool   abierto
+    int    dir
+    int    barraToque
+    bool   control
+
+var array<Seguidor> seguidores = array.new<Seguidor>()
+
+// Generador pseudoaleatorio determinista (congruencial lineal): Pine no trae
+// random(), y los niveles de control tienen que ser reproducibles entre recargas.
+// Se actualiza EN LÍNEA dentro del bucle, no en una función: Pine no garantiza que
+// una función pueda modificar una variable global.
+// Sin desborde: semilla < 2^31 por 1.1e9 da ~2.4e18, bajo el máximo de int64.
+var int semilla = 987654321
+
+nuevoSeguidor(string nombre, bool esControl) =>
+    Seguidor.new(nombre, na, 0, 0, 0, 0, false, 0, 0, esControl)
+
+if barstate.isfirst and verStats
+    array.push(seguidores, nuevoSeguidor("Máx RTH previo", false))
+    array.push(seguidores, nuevoSeguidor("Mín RTH previo", false))
+    array.push(seguidores, nuevoSeguidor("Cierre RTH prev", false))
+    array.push(seguidores, nuevoSeguidor("Máx Globex", false))
+    array.push(seguidores, nuevoSeguidor("Mín Globex", false))
+    array.push(seguidores, nuevoSeguidor("Pivote PP", false))
+    array.push(seguidores, nuevoSeguidor("R1", false))
+    array.push(seguidores, nuevoSeguidor("S1", false))
+    for i = 0 to 4
+        if i < nControl
+            array.push(seguidores, nuevoSeguidor("CONTROL azar " + str.tostring(i + 1), true))
+
+// Al abrir la sesión se refrescan los precios seguidos y se cancela lo pendiente.
+if verStats and abreRTH and array.size(seguidores) > 0
+    float lo = na(prevL) or na(atrS) ? na : prevL - atrS
+    float hi = na(prevH) or na(atrS) ? na : prevH + atrS
+    for i = 0 to array.size(seguidores) - 1
+        Seguidor sg = array.get(seguidores, i)
+        sg.abierto := false
+        semilla := (semilla * 1103515245 + 12345) % 2147483648
+        float azarPrecio = na(lo) or na(hi) ? na : lo + (semilla / 2147483648.0) * (hi - lo)
+        sg.precio := switch sg.nombre
+            "Máx RTH previo"  => prevH
+            "Mín RTH previo"  => prevL
+            "Cierre RTH prev" => prevC
+            "Máx Globex"      => glxH
+            "Mín Globex"      => glxL
+            "Pivote PP"       => pp
+            "R1"              => r1
+            "S1"              => s1
+            // Control: un precio al azar dentro del rango previo ampliado por un ATR
+            => azarPrecio
+
+// Máquina de estados, idéntica a la del módulo de Python que se testeó aparte.
+if verStats and enRTH and not na(atrS) and array.size(seguidores) > 0
+    float tol = tolATR * atrS
+    float mrg = margenATR * atrS
+    for i = 0 to array.size(seguidores) - 1
+        Seguidor sg = array.get(seguidores, i)
+        if not na(sg.precio)
+            if not sg.abierto
+                if low <= sg.precio + tol and high >= sg.precio - tol
+                    sg.abierto := true
+                    sg.toques += 1
+                    sg.barraToque := bar_index
+                    // Desde abajo = el nivel actúa de resistencia
+                    sg.dir := close[1] < sg.precio ? 1 : -1
+            else if bar_index > sg.barraToque
+                bool arriba = high >= sg.precio + mrg
+                bool abajo  = low  <= sg.precio - mrg
+                if arriba and abajo
+                    // Una sola vela hizo las dos cosas: con velas no se sabe cuál
+                    // ocurrió primero, así que no se decide.
+                    sg.ambiguos += 1
+                    sg.abierto := false
+                else if sg.dir == 1
+                    if arriba
+                        sg.rompio += 1
+                        sg.abierto := false
+                    else if abajo
+                        sg.aguanto += 1
+                        sg.abierto := false
+                else
+                    if abajo
+                        sg.rompio += 1
+                        sg.abierto := false
+                    else if arriba
+                        sg.aguanto += 1
+                        sg.abierto := false
+                if sg.abierto and bar_index - sg.barraToque >= maxBarrasRes
+                    sg.abierto := false      // sin resolver: no suma a ningún lado
+
+// Base del control: promedio de las líneas al azar, para comparar contra ella.
+baseControl() =>
+    int ag = 0
+    int re = 0
+    if array.size(seguidores) > 0
+        for i = 0 to array.size(seguidores) - 1
+            Seguidor sg = array.get(seguidores, i)
+            if sg.control
+                ag += sg.aguanto
+                re += sg.aguanto + sg.rompio
+    re > 0 ? 100.0 * ag / re : na
+
 // ───────────────── Dibujo: una línea + etiqueta por nivel ─────────────────
 // Se crean una sola vez y se reposicionan; así no se acumulan objetos ni se
 // toca el límite de 100 líneas del indicador.
@@ -226,41 +356,81 @@ dibujar(gammaCero > 0 ? gammaCero : na, "Gamma cero", colOpciones, true, true)
 plot(verVWAP and enRTH ? vwapSesion : na, "VWAP de sesión", color=colVWAP, linewidth=2)
 
 // ───────────────────────────── Tabla ─────────────────────────────
-// La tabla y la función que la llena van en el ámbito global: Pine no admite
+// La tabla y las funciones que la llenan van en ámbito global: Pine no admite
 // declarar funciones dentro de un `if`.
-var table t = table.new(position.top_right, 3, 10, border_width=1,
+var table t = table.new(position.top_right, 5, 14, border_width=1,
      frame_color=color.new(#1e2a45, 0), frame_width=1)
 
-fila(int r, string k, float v, color col) =>
-    if verTabla and barstate.islast and not na(v)
-        table.cell(t, 0, r, k, text_color=col, text_size=size.small,
-             text_halign=text.align_left, bgcolor=color.new(#111a2b, 10))
-        table.cell(t, 1, r, str.tostring(v, format.mintick), text_color=#e8edf7,
-             text_size=size.small, text_halign=text.align_right,
-             bgcolor=color.new(#111a2b, 10))
-        d = v - close
-        table.cell(t, 2, r, (d > 0 ? "+" : "") + str.tostring(d, "#.##"),
-             text_color=#8a98b5, text_size=size.small,
-             text_halign=text.align_right, bgcolor=color.new(#111a2b, 10))
+celda(int c, int r, string txt, color col, color fondo) =>
+    table.cell(t, c, r, txt, text_color=col, text_size=size.small,
+         text_halign=c == 0 ? text.align_left : text.align_right, bgcolor=fondo)
     true
 
-if verTabla and barstate.islast
-    table.cell(t, 0, 0, "Nivel", text_color=#8a98b5, text_size=size.small,
-         text_halign=text.align_left, bgcolor=color.new(#0e1626, 0))
-    table.cell(t, 1, 0, "Precio", text_color=#8a98b5, text_size=size.small,
-         text_halign=text.align_right, bgcolor=color.new(#0e1626, 0))
-    table.cell(t, 2, 0, "Dist.", text_color=#8a98b5, text_size=size.small,
-         text_halign=text.align_right, bgcolor=color.new(#0e1626, 0))
+// Fila con precio, distancia y —si hay estadística— tasa de aguante y cantidad.
+fila(int r, string k, float v, color col, int aguanto, int rompio) =>
+    if verTabla and barstate.islast and not na(v)
+        fondo = color.new(#111a2b, 10)
+        celda(0, r, k, col, fondo)
+        celda(1, r, str.tostring(v, format.mintick), #e8edf7, fondo)
+        d = v - close
+        celda(2, r, (d > 0 ? "+" : "") + str.tostring(d, "#.##"), #8a98b5, fondo)
+        int n = aguanto + rompio
+        celda(3, r, n > 0 ? str.tostring(math.round(100.0 * aguanto / n)) + "%" : "—",
+             n >= 8 ? #e8edf7 : #8a98b5, fondo)
+        celda(4, r, n > 0 ? "n=" + str.tostring(n) : "", #8a98b5, fondo)
+    true
 
-fila(1, "Cierre RTH prev", prevC, colSesion)
-fila(2, "Máx RTH previo",  prevH, colSesion)
-fila(3, "Mín RTH previo",  prevL, colSesion)
-fila(4, "VWAP",            vwapSesion, colVWAP)
-fila(5, "Pivote PP",       pp, colSesion)
-fila(6, "Muro calls",      muroCall  > 0 ? muroCall  : na, colOpciones)
-fila(7, "Gamma cero",      gammaCero > 0 ? gammaCero : na, colOpciones)
-fila(8, "Max pain",        maxPain   > 0 ? maxPain   : na, colOpciones)
-fila(9, "Muro puts",       muroPut   > 0 ? muroPut   : na, colOpciones)
+// Busca en los seguidores los conteos de un nivel por su nombre.
+conteo(string nombre, bool aguantes) =>
+    int r = 0
+    if verStats and array.size(seguidores) > 0
+        for i = 0 to array.size(seguidores) - 1
+            Seguidor sg = array.get(seguidores, i)
+            if sg.nombre == nombre
+                r := aguantes ? sg.aguanto : sg.rompio
+    r
+
+if verTabla and barstate.islast
+    fondoEnc = color.new(#0e1626, 0)
+    celda(0, 0, "Nivel",  #8a98b5, fondoEnc)
+    celda(1, 0, "Precio", #8a98b5, fondoEnc)
+    celda(2, 0, "Dist.",  #8a98b5, fondoEnc)
+    celda(3, 0, "Aguanta", #8a98b5, fondoEnc)
+    celda(4, 0, "Toques", #8a98b5, fondoEnc)
+
+fila(1, "Cierre RTH prev", prevC, colSesion,
+     conteo("Cierre RTH prev", true), conteo("Cierre RTH prev", false))
+fila(2, "Máx RTH previo",  prevH, colSesion,
+     conteo("Máx RTH previo", true),  conteo("Máx RTH previo", false))
+fila(3, "Mín RTH previo",  prevL, colSesion,
+     conteo("Mín RTH previo", true),  conteo("Mín RTH previo", false))
+fila(4, "Máx Globex",      glxH,  colSesion,
+     conteo("Máx Globex", true),      conteo("Máx Globex", false))
+fila(5, "Mín Globex",      glxL,  colSesion,
+     conteo("Mín Globex", true),      conteo("Mín Globex", false))
+fila(6, "VWAP",            vwapSesion, colVWAP, 0, 0)
+fila(7, "Pivote PP",       pp, colSesion, conteo("Pivote PP", true), conteo("Pivote PP", false))
+fila(8, "Muro calls",      muroCall  > 0 ? muroCall  : na, colOpciones, 0, 0)
+fila(9, "Gamma cero",      gammaCero > 0 ? gammaCero : na, colOpciones, 0, 0)
+fila(10, "Max pain",       maxPain   > 0 ? maxPain   : na, colOpciones, 0, 0)
+fila(11, "Muro puts",      muroPut   > 0 ? muroPut   : na, colOpciones, 0, 0)
+
+// LA FILA QUE IMPORTA. Si tus niveles no le ganan a esta, la tasa alta es del
+// método de medición y no del nivel. Medido sobre ES y NQ, el control da ~73%.
+if verTabla and verStats and barstate.islast and nControl > 0
+    bc = baseControl()
+    int nc = 0
+    if array.size(seguidores) > 0
+        for i = 0 to array.size(seguidores) - 1
+            Seguidor sg = array.get(seguidores, i)
+            if sg.control
+                nc += sg.aguanto + sg.rompio
+    fondoC = color.new(#1e2a45, 20)
+    celda(0, 12, "CONTROL al azar", #e8b64c, fondoC)
+    celda(1, 12, "—", #8a98b5, fondoC)
+    celda(2, 12, "—", #8a98b5, fondoC)
+    celda(3, 12, na(bc) ? "—" : str.tostring(math.round(bc)) + "%", #e8b64c, fondoC)
+    celda(4, 12, nc > 0 ? "n=" + str.tostring(nc) : "", #8a98b5, fondoC)
 
 // ───────────────────────────── Alertas ─────────────────────────────
 // `alert()` permite mensaje dinámico; se dispara una vez por barra cerrada

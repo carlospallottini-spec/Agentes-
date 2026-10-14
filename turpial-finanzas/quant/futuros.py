@@ -14,6 +14,7 @@ import time
 from connectors import market
 from quant import niveles as nv
 from quant import opciones as op
+from quant import toques as tq
 
 CONTRATOS = {
     "ES=F":  {"nombre": "E-mini S&P 500", "indice": "^SPX", "tick": 0.25,
@@ -29,6 +30,7 @@ CONTRATOS = {
 _CACHE: dict[str, tuple[float, dict]] = {}
 TTL_NIVELES = 120      # 2 minutos: el precio se mueve, los niveles de sesión poco
 TTL_OPCIONES = 900     # 15 minutos: el interés abierto cambia una vez por día
+TTL_TOQUES = 1800      # 30 minutos: es historial de meses, una vela más no lo mueve
 
 
 def _cacheado(clave: str, ttl: int, fn):
@@ -117,3 +119,34 @@ def tablero(symbol: str, minutos_apertura: int = 30, rango_pct: float = 5.0,
 def contratos() -> list[dict]:
     """Lista de contratos soportados, para armar el selector de la interfaz."""
     return [{"symbol": k, **v} for k, v in CONTRATOS.items()]
+
+
+def toques_de_contrato(symbol: str, repeticiones: int = 200) -> dict:
+    """Tasa de aguante histórica de cada nivel, contra el control de niveles al azar.
+
+    El control no es decorativo: sin él la tabla diría "los niveles aguantan el 71% de
+    las veces" y cualquiera leería eso como una ventaja. Niveles puestos al azar dan
+    ~73% con el mismo procedimiento, así que la cifra sola mide la mecánica de la
+    medición. Lo que se devuelve es el exceso sobre esa base y si se distingue de cero.
+    """
+    symbol = symbol.upper()
+    if symbol not in CONTRATOS:
+        return {"ok": False, "motivo": f"Contrato no soportado: {symbol}."}
+
+    def calcular() -> dict:
+        velas = _cacheado(f"v:{symbol}", TTL_NIVELES, lambda: market.velas(symbol, "5m"))
+        pts = velas.get("points", [])
+        if not pts:
+            return {"ok": False, "motivo": "Sin velas intradía."}
+        rep = tq.estadistica(pts)
+        if not rep.get("ok"):
+            return rep
+        nulo = tq.nulo_niveles_aleatorios(pts, repeticiones=repeticiones)
+        if not nulo.get("ok"):
+            # Sin control no hay lectura: la tasa sola no distingue un nivel real de un
+            # precio inventado, así que es mejor no devolver nada que devolverla suelta.
+            return {"ok": False, "motivo": "Sin control al azar la tasa no significa nada: "
+                                           + nulo.get("motivo", "el nulo falló.")}
+        return tq.contra_el_nulo(rep, nulo)
+
+    return _cacheado(f"t:{symbol}:{repeticiones}", TTL_TOQUES, calcular)

@@ -13,6 +13,9 @@
        banda de luminosidad OKLCH 0.48-0.67, separación CVD ΔE 25.5 en protanopía,
        26.9 en visión normal, contraste >=3:1. No se usan para texto. */
     --serie-sesion:#4a86de; --serie-opciones:#b8862b;
+    /* El control al azar es una REFERENCIA, no una serie: gris, recesivo, nunca
+       compitiendo con el dato. */
+    --ref:#8a98b5;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--txt);
@@ -43,6 +46,10 @@
   .tile .h{font-size:10.5px;color:var(--muted);margin-top:1px}
   /* Escalera de precios */
   .ladder-wrap{position:relative;margin-top:8px}
+  svg.puntos{width:100%;display:block;overflow:visible}
+  /* La tabla de toques tiene 8 columnas: en celular scrollea ELLA, no la página. */
+  .tabla-scroll{overflow-x:auto;margin-top:12px}
+  .tabla-scroll table{min-width:620px}
   svg.ladder{width:100%;display:block;overflow:visible}
   .legend{display:flex;gap:16px;align-items:center;margin:8px 0 2px;font-size:12px;
     color:var(--muted);flex-wrap:wrap}
@@ -63,6 +70,10 @@
     margin-bottom:14px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  /* Sin esto las columnas no bajan del ancho mínimo de su tabla y la PÁGINA scrollea
+     en celular. Que scrollee la tabla. */
+  .grid2>*{min-width:0}
+  #tabla-niveles,#tabla-opciones{overflow-x:auto}
   .empty{color:var(--muted);text-align:center;padding:24px 10px;font-size:13px}
   footer{color:var(--muted);font-size:11px;text-align:center;padding:10px 0 24px;
     line-height:1.7}
@@ -113,6 +124,14 @@
       solo y en tiempo real; sólo estos cuatro son manuales.</div>
   </section>
 
+  <section class="card" id="toques-card">
+    <h2>¿Los niveles aguantan? Contra niveles puestos al azar</h2>
+    <div class="sub">Tasa de aguante por nivel con intervalo del 95%, sobre la banda que
+      dan niveles inventados con el mismo procedimiento. Si la marca cae dentro de la
+      banda gris, ese nivel no se distingue de un precio al azar.</div>
+    <div id="toques"><div class="empty">Midiendo toques…</div></div>
+  </section>
+
   <div class="grid2">
     <section class="card">
       <h2>Todos los niveles</h2>
@@ -136,7 +155,7 @@
 <script>
 const $ = s => document.querySelector(s);
 const API = p => fetch(p).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)));
-let SYM = "ES=F", DATA = null;
+let SYM = "ES=F", DATA = null, TOQ = null;
 
 const fmt = (v, d = 2) => v == null ? "—"
   : Number(v).toLocaleString("es-AR", {minimumFractionDigits: d, maximumFractionDigits: d});
@@ -166,6 +185,21 @@ async function cargar(){
   $("#aviso").textContent = DATA.aviso;
   pintarResumen(); pintarEscalera(); pintarTablaNiveles(); pintarOpciones();
   pintarTradingView();
+  cargarToques();   // va aparte: el nulo tarda unos segundos y no debe frenar el resto
+}
+
+async function cargarToques(){
+  const host = $("#toques"), pedido = SYM;
+  host.innerHTML = '<div class="empty">Midiendo toques y corriendo el control al azar…</div>';
+  let t;
+  try{ t = await API("/api/futuros/toques/" + encodeURIComponent(SYM)); }
+  catch(e){
+    if(pedido !== SYM) return;
+    host.innerHTML = '<div class="empty">' + ((e && e.detail) || "No se pudo medir.") + '</div>';
+    return;
+  }
+  if(pedido !== SYM) return;   // el usuario cambió de contrato mientras cargaba
+  TOQ = t; pintarToques();
 }
 
 function pintarResumen(){
@@ -315,6 +349,156 @@ function pintarTablaNiveles(){
   h += '</table><div class="nota">Las filas con fondo tenue están por encima del precio ' +
        'actual. El dólar por contrato usa el multiplicador de ' + DATA.symbol + '.</div>';
   $("#tabla-niveles").innerHTML = h;
+}
+
+function pintarToques(){
+  const t = TOQ, host = $("#toques"), ctrl = t.nulo || {}, g = t.global || {};
+  const filas = (t.niveles || []).filter(f => f.resueltos > 0)
+                                 .slice().sort((a, b) => b.resueltos - a.resueltos);
+  if(!filas.length){ host.innerHTML = '<div class="empty">Sin toques resueltos.</div>'; return; }
+
+  // --- Lectura primero: el número solo se malinterpreta. ---
+  let h = '<div class="warn">' + t.veredicto + '</div>';
+
+  const tile = (k, v, hint) => '<div class="tile"><div class="k">' + k + '</div><div class="v">' +
+    v + '</div>' + (hint ? '<div class="h">' + hint + '</div>' : '') + '</div>';
+  h += '<div class="tiles">' +
+    tile("Aguante medido", fmt(g.tasa_aguante, 1) + "%",
+         "IC95 " + fmt(g.ic95_bajo, 1) + "–" + fmt(g.ic95_alto, 1) + "%") +
+    tile("Control al azar", fmt(ctrl.media, 1) + "%",
+         "p05 " + fmt(ctrl.p05, 1) + " · p95 " + fmt(ctrl.p95, 1)) +
+    tile("p empírico", t.p_empirico_global == null ? "—" : fmt(t.p_empirico_global, 3),
+         t.p_empirico_global >= 0.05 ? "no se distingue del azar" : "supera al azar") +
+    tile("Niveles informativos", t.niveles_informativos + " / " + filas.length,
+         "tras corregir por " + filas.length + " pruebas") +
+    tile("Toques resueltos", String(g.resueltos),
+         t.sesiones_usadas + " sesiones de 5 min") +
+    '</div>';
+
+  // --- Dot-plot: estimación + incertidumbre contra una referencia. ---
+  // Un nivel con 2 toques da un intervalo de 20 a 100: no informa nada y estira el eje
+  // hasta aplastar al resto. Va a la tabla, no al gráfico.
+  const MIN_N = 5;
+  const graf = filas.filter(f => f.resueltos >= MIN_N);
+  const pocos = filas.length - graf.length;
+  if(!graf.length){
+    host.innerHTML = h + '<div class="empty">Ningún nivel llega a ' + MIN_N +
+      ' toques resueltos: con esta muestra no hay nada que graficar.</div>';
+    return;
+  }
+  const valores = graf.flatMap(f => [f.ic95_bajo, f.ic95_alto])
+                       .concat([ctrl.p05, ctrl.p95, ctrl.media, 50]).filter(v => v != null);
+  let lo = Math.min(...valores), hi = Math.max(...valores);
+  const pad = (hi - lo) * 0.08 || 2;
+  lo = Math.max(0, lo - pad); hi = Math.min(100, hi + pad);
+
+  h += '<div class="legend">' +
+    '<span><i style="background:var(--serie-sesion)"></i>Nivel real (marca = tasa, barra = IC95)</span>' +
+    '<span><i style="background:var(--ref);opacity:.22"></i>Banda del control al azar (p05–p95)</span>' +
+    '<span style="color:var(--muted)">línea punteada = moneda al aire (50%)</span></div>';
+  h += '<div class="ladder-wrap"><svg class="puntos" id="svg-toques"></svg></div>';
+  h += '<div class="nota">' + (pocos ? 'Hay ' + pocos + ' nivel(es) con menos de ' +
+       MIN_N + ' toques resueltos: están en la tabla pero no en el gráfico, porque su ' +
+       'intervalo abarca casi todo el eje y no distingue nada. ' : '') +
+       'El procedimiento tiene sesgo propio: una vela que toca una ' +
+       'resistencia desde abajo suele cerrar por debajo del nivel, o sea ya arranca más ' +
+       'cerca de "aguantó" que de "rompió". Por eso la cifra absoluta no dice nada y el ' +
+       'control al azar es la única referencia válida. Datos de 5 minutos: Yahoo entrega ' +
+       'unas 8 semanas, así que la muestra por nivel es chica y el intervalo, ancho.</div>';
+
+  // --- Tabla: la misma información en texto, para quien no ve color. ---
+  h += '<div class="tabla-scroll"><table><tr><th class="l">Nivel</th><th>Toques</th>' +
+       '<th>Resueltos</th><th>Aguante</th><th>IC95</th><th>Exceso vs azar</th><th>z</th>' +
+       '<th class="l">Veredicto</th></tr>';
+  filas.forEach(f => {
+    const exc = f.exceso;
+    h += '<tr><td class="l"><span class="chip" style="background:var(--serie-sesion)"></span>' +
+      f.nivel + '</td><td>' + f.toques + '</td><td>' + f.resueltos + '</td><td>' +
+      fmt(f.tasa_aguante, 1) + '%</td><td>' + fmt(f.ic95_bajo, 1) + '–' + fmt(f.ic95_alto, 1) +
+      '</td><td>' + (exc == null ? "—" : sgn(exc, 1) + " pp") + '</td><td>' +
+      (f.z_vs_azar == null ? "—" : fmt(f.z_vs_azar, 2)) + '</td><td class="l">' +
+      (f.informativo ? "informativo" : "no se distingue del azar") + '</td></tr>';
+  });
+  h += '</table></div>';
+  host.innerHTML = h;
+
+  const svg = $("#svg-toques");
+  const W = svg.clientWidth || 900;
+  const SEP = 26, mT = 24, mB = 30, mL = 152, mR = 58;
+  const H = graf.length * SEP + mT + mB;
+  const x = v => mL + (W - mL - mR) * (v - lo) / (hi - lo);
+  const yFila = i => mT + i * SEP + SEP / 2;
+
+  // En el eje no cabe el nombre largo; la tabla y el tooltip lo muestran completo.
+  const corto = n => n.replace("esperado", "esp.")
+                      .replace("(apertura + ATR)", "(ap+ATR)")
+                      .replace("(apertura − ATR)", "(ap−ATR)");
+
+  let d = '';
+  // Banda del control: referencia de fondo, nunca encima del dato.
+  if(ctrl.p05 != null && ctrl.p95 != null){
+    d += `<rect x="${x(ctrl.p05)}" y="${mT - 6}" width="${Math.max(1, x(ctrl.p95) - x(ctrl.p05))}" ` +
+         `height="${H - mT - mB + 12}" fill="var(--ref)" opacity="0.22"/>`;
+    d += `<line x1="${x(ctrl.media)}" y1="${mT - 6}" x2="${x(ctrl.media)}" y2="${H - mB + 6}" ` +
+         `stroke="var(--ref)" stroke-width="2"/>`;
+  }
+  if(50 >= lo && 50 <= hi){
+    d += `<line x1="${x(50)}" y1="${mT - 6}" x2="${x(50)}" y2="${H - mB + 6}" ` +
+         `stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 4"/>`;
+  }
+  // Eje inferior, recesivo.
+  for(let i = 0; i <= 4; i++){
+    const v = lo + (hi - lo) * i / 4;
+    d += `<text x="${x(v)}" y="${H - 10}" text-anchor="middle" font-size="11" ` +
+         `fill="var(--muted)">${fmt(v, 0)}%</text>`;
+  }
+
+  graf.forEach((f, i) => {
+    const yy = yFila(i);
+    d += `<text x="${mL - 10}" y="${yy + 4}" text-anchor="end" font-size="11.5" ` +
+         `fill="var(--txt)">${corto(f.nivel)}</text>`;
+    d += `<line x1="${x(f.ic95_bajo)}" y1="${yy}" x2="${x(f.ic95_alto)}" y2="${yy}" ` +
+         `stroke="var(--serie-sesion)" stroke-width="2" stroke-linecap="round"/>`;
+    // Anillo de 2px contra la banda, para que la marca no se funda con la referencia.
+    d += `<circle cx="${x(f.tasa_aguante)}" cy="${yy}" r="5.5" fill="var(--serie-sesion)" ` +
+         `stroke="var(--panel)" stroke-width="2" data-i="${i}" style="cursor:pointer"/>`;
+    d += `<text x="${W - mR + 8}" y="${yy + 4}" font-size="11" fill="var(--muted)">` +
+         `n=${f.resueltos}</text>`;
+    // Blanco de hover más grande que la marca.
+    d += `<rect x="${mL}" y="${yy - SEP / 2}" width="${W - mL - mR}" height="${SEP}" ` +
+         `fill="transparent" data-i="${i}" style="cursor:pointer"/>`;
+  });
+
+  svg.setAttribute("height", H);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = d;
+  svg.querySelectorAll("[data-i]").forEach(el => {
+    const f = graf[Number(el.dataset.i)];
+    el.addEventListener("mousemove", ev => tipToque(ev, f));
+    el.addEventListener("mouseleave", ocultarTip);
+  });
+}
+
+function tipToque(ev, f){
+  const t = $("#tip"), ctrl = TOQ.nulo || {};
+  const dir = ["desde_abajo", "desde_arriba"].map(k => f[k]
+    ? (k === "desde_abajo" ? "desde abajo" : "desde arriba") + ": " + fmt(f[k].tasa, 1) +
+      "% (n=" + f[k].n + ")" : null).filter(Boolean).join("<br>");
+  t.innerHTML = '<b>' + f.nivel + '</b><br><span class="t-px">' + fmt(f.tasa_aguante, 1) +
+    '% aguante · IC95 ' + fmt(f.ic95_bajo, 1) + '–' + fmt(f.ic95_alto, 1) + '%</span><br>' +
+    f.aguanto + ' aguantó / ' + f.rompio + ' rompió · ' + f.ambiguos + ' ambiguos · ' +
+    f.sin_resolver + ' sin resolver<br>' +
+    'control al azar: ' + fmt(ctrl.media, 1) + '%<br>' +
+    'exceso: ' + (f.exceso == null ? "—" : sgn(f.exceso, 1) + ' pp') +
+    ' · z=' + (f.z_vs_azar == null ? "—" : fmt(f.z_vs_azar, 2)) +
+    (dir ? '<br>' + dir : '') +
+    '<br>' + (f.informativo ? '<b>informativo</b>' : 'no se distingue del azar');
+  t.style.opacity = 1;
+  const r = t.getBoundingClientRect();
+  let xx = ev.clientX + 14, yy = ev.clientY + 14;
+  if(xx + r.width > window.innerWidth - 10) xx = ev.clientX - r.width - 14;
+  if(yy + r.height > window.innerHeight - 10) yy = ev.clientY - r.height - 14;
+  t.style.left = xx + "px"; t.style.top = yy + "px";
 }
 
 function pintarOpciones(){

@@ -100,6 +100,16 @@ def api_futuros_contratos() -> JSONResponse:
     return JSONResponse(content=quant_futuros.contratos())
 
 
+@app.get("/api/futuros/toques/{symbol:path}")
+def api_futuros_toques(symbol: str,
+                       repeticiones: int = Query(200, ge=50, le=500)) -> JSONResponse:
+    """Tasa de aguante histórica por nivel, con el control de niveles al azar al lado."""
+    rep = quant_futuros.toques_de_contrato(symbol, repeticiones=repeticiones)
+    if not rep.get("ok"):
+        raise HTTPException(status_code=404, detail=rep.get("motivo", "No disponible."))
+    return JSONResponse(content=rep)
+
+
 @app.get("/api/futuros/{symbol:path}")
 def api_futuros(symbol: str, apertura: int = Query(30, ge=5, le=120),
                 rango_pct: float = Query(5.0, ge=1.0, le=20.0),

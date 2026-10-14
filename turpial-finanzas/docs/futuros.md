@@ -114,6 +114,59 @@ cerrada para no inundar el teléfono con cada oscilación sobre el nivel.
 Probalo en `ES1!`, `NQ1!` o `MNQ1!` en temporalidad intradía (1 a 15 minutos). En diario no
 tiene sentido: los niveles son de sesión.
 
+### La estadística de toques, y por qué el control al azar no es opcional
+
+El indicador cuenta, nivel por nivel, cuántas veces el precio **aguantó** y cuántas
+**rompió**. La primera versión decía algo así: *"los niveles aguantan el 71% de los
+toques"*. Esa cifra es verdadera y no significa nada.
+
+El problema es el procedimiento. Una vela que toca una resistencia desde abajo casi siempre
+cierra por debajo del nivel: ya arranca más cerca de la condición de "aguantó" que de la de
+"rompió". Cualquier precio medido así da una tasa alta, incluso uno inventado.
+
+Para medirlo se corre todo de nuevo con **niveles puestos al azar** dentro del rango de la
+sesión previa ampliado por un ATR, en la misma cantidad y con las mismas reglas:
+
+| | ES=F | NQ=F |
+|---|---|---|
+| Niveles reales | 71,1 % | 72,4 % |
+| Niveles **al azar** | 73,5 % | 73,0 % |
+| p empírico | 0,76 | 0,59 |
+| Niveles informativos (de 12) | 0 | 0 |
+
+Los niveles de verdad **pierden** contra líneas tiradas al azar. El 71% medía la mecánica
+de la medición, no el mercado. Ningún nivel individual sobrevive a corregir por las doce
+pruebas: el mejor fue el Pivote R2 del NQ con z = 2,11 sobre n = 12, que da p = 0,035
+suelto pero necesita p < 0,0042 para pasar Bonferroni con doce candidatos. Mirar doce
+niveles y quedarse con el mejor es exactamente la receta conocida para encontrar nada.
+
+**Conclusión operativa:** los niveles sirven como mapa de dónde mirar y dónde poner un
+stop, no como probabilidad de rebote. El indicador y la app muestran el control al azar
+**al lado** del dato, en la misma tabla y en el mismo gráfico, para que la cifra no se
+pueda leer sola.
+
+Detalles del procedimiento:
+
+- Tolerancia de toque: 0,10 ATR de sesión. Margen de resolución: 0,25 ATR. En fracciones
+  de ATR y no en puntos, para que el criterio signifique lo mismo en ES (ATR ~60) que en
+  NQ (ATR ~350).
+- Tras resolver un toque hay **enfriamiento**: el precio tiene que alejarse del nivel antes
+  de que cuente un toque nuevo. Sin eso, una consolidación pegada al nivel registraba un
+  toque por vela y multiplicaba el conteo.
+- Límite de 24 barras para resolver; lo que no resuelve queda como `sin_resolver` y no
+  suma a ningún lado.
+- Intervalos por Wilson, no por la aproximación normal: con n=7 la normal da intervalos
+  que se salen de [0,1].
+- La muestra es chica y no por descuido: Yahoo entrega unas 8 semanas de velas de 5
+  minutos, o sea ~26 sesiones. Por eso los intervalos son anchos. Con un feed de más
+  historial la conclusión podría cambiar, pero el control al azar seguiría siendo
+  obligatorio.
+
+Está en `quant/toques.py` (Python, con tests), en `/api/futuros/toques/{symbol}` y
+replicado en el Pine, donde la tabla lleva una fila ámbar **"CONTROL al azar"** con un
+nivel sorteado en cada apertura de sesión por un generador congruencial propio — Pine no
+trae números aleatorios.
+
 ### Lo que no pude verificar
 
 **El Pine no está compilado.** No hay compilador de Pine fuera de TradingView, así que
