@@ -1,0 +1,288 @@
+// Este trabajo está bajo los términos de la licencia Mozilla Public License 2.0
+// https://mozilla.org/MPL/2.0/
+// Investigación educativa — no es asesoría financiera.
+
+//@version=6
+indicator("Niveles de sesión · ES / NQ / MNQ", shorttitle="Niveles", overlay=true,
+     max_lines_count=100, max_labels_count=100, max_boxes_count=20)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QUÉ DIBUJA
+//   · Sesión RTH previa (9:30-16:00 NY): máximo, mínimo y cierre
+//   · Globex / rueda nocturna (18:00-9:30): máximo y mínimo
+//   · Rango de apertura (initial balance) de los primeros N minutos
+//   · VWAP anclado a la apertura del RTH
+//   · Pivotes de piso sobre la sesión previa
+//   · Rango esperado: apertura ± ATR de sesión
+//   · Niveles de opciones (entrada MANUAL, ver abajo)
+//
+// POR QUÉ LAS OPCIONES SE CARGAN A MANO
+//   Pine Script no puede leer una cadena de opciones: `request.security` sólo
+//   trae otros símbolos de TradingView, no interés abierto por strike. El muro
+//   de calls, el de puts, el max pain y el gamma cero hay que escribirlos.
+//   La buena noticia: el interés abierto se actualiza UNA VEZ POR DÍA, así que
+//   son cuatro números por la mañana y listo.
+//   El tablero web del repo los calcula y los deja listos para copiar:
+//     python main.py  →  http://localhost:8000/futuros
+//
+// EN QUÉ SÍ ES TIEMPO REAL
+//   Todo lo demás. El VWAP, el rango de apertura y las distancias se actualizan
+//   tick a tick; los extremos de Globex y del RTH previo se fijan solos al
+//   cambiar la sesión, sin repintado: cada nivel queda definido cuando su
+//   sesión termina y no se vuelve a tocar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ───────────────────────────── Entradas ─────────────────────────────
+grpS = "Sesión"
+tzNY        = input.string("America/New_York", "Zona horaria", group=grpS)
+sesRTH      = input.session("0930-1600", "Sesión RTH", group=grpS)
+sesGlobex   = input.session("1800-0930", "Rueda nocturna (Globex)", group=grpS)
+minApertura = input.int(30, "Rango de apertura (minutos)", minval=5, maxval=120, group=grpS)
+periodoATR  = input.int(14, "Sesiones para el ATR", minval=2, maxval=50, group=grpS)
+
+grpV = "Qué mostrar"
+verRTH    = input.bool(true,  "RTH previo (máx/mín/cierre)", group=grpV)
+verGlobex = input.bool(true,  "Globex (máx/mín)",            group=grpV)
+verIB     = input.bool(true,  "Rango de apertura",           group=grpV)
+verVWAP   = input.bool(true,  "VWAP de sesión",              group=grpV)
+verPiv    = input.bool(true,  "Pivotes de piso",             group=grpV)
+verPiv23  = input.bool(false, "Pivotes R2/R3/S2/S3",         group=grpV)
+verATR    = input.bool(true,  "Rango esperado por ATR",      group=grpV)
+verTabla  = input.bool(true,  "Tabla de distancias",         group=grpV)
+
+grpO = "Opciones (carga manual · 0 = ocultar)"
+muroCall  = input.float(0.0, "Muro de calls",  group=grpO)
+muroPut   = input.float(0.0, "Muro de puts",   group=grpO)
+maxPain   = input.float(0.0, "Max pain",       group=grpO)
+gammaCero = input.float(0.0, "Gamma cero",     group=grpO)
+
+grpC = "Colores"
+// Dos familias: lo que sale del PRECIO y lo que sale de las OPCIONES.
+// Arriba o abajo del precio ya lo dice la posición en el gráfico; el color
+// se reserva para el ORIGEN del nivel, que es lo que no se puede deducir mirando.
+colSesion   = input.color(#4a86de, "Precio y sesión", group=grpC)
+colOpciones = input.color(#b8862b, "Opciones",        group=grpC)
+colVWAP     = input.color(#8a98b5, "VWAP",            group=grpC)
+anchoLinea  = input.int(1, "Grosor de línea", minval=1, maxval=4, group=grpC)
+barrasExt   = input.int(60, "Extender N barras a la derecha", minval=10, maxval=500, group=grpC)
+
+grpA = "Alertas"
+avisarCruce = input.bool(true, "Avisar cuando el precio cruza un nivel", group=grpA)
+margenAviso = input.float(0.0, "Margen del aviso (puntos)", minval=0.0, group=grpA)
+
+// ───────────────────────── Detección de sesión ─────────────────────────
+enRTH    = not na(time(timeframe.period, sesRTH,    tzNY))
+enGlobex = not na(time(timeframe.period, sesGlobex, tzNY))
+abreRTH    = enRTH    and not enRTH[1]
+abreGlobex = enGlobex and not enGlobex[1]
+
+// Estado del RTH en curso y de la sesión previa ya cerrada
+var float rthH  = na
+var float rthL  = na
+var float rthC  = na
+var float rthO  = na
+var float prevH = na
+var float prevL = na
+var float prevC = na
+var int   tsRTH = na
+
+// Historia de sesiones para el ATR (máximo, mínimo, cierre)
+var array<float> hH = array.new<float>()
+var array<float> hL = array.new<float>()
+var array<float> hC = array.new<float>()
+
+if abreRTH
+    // Al abrir una sesión nueva, la que terminaba pasa a ser "la previa"
+    if not na(rthH)
+        prevH := rthH
+        prevL := rthL
+        prevC := rthC
+        array.push(hH, rthH)
+        array.push(hL, rthL)
+        array.push(hC, rthC)
+        if array.size(hH) > periodoATR + 2
+            array.shift(hH)
+            array.shift(hL)
+            array.shift(hC)
+    rthO := open
+    rthH := high
+    rthL := low
+    rthC := close
+    tsRTH := time
+else if enRTH
+    rthH := math.max(rthH, high)
+    rthL := math.min(rthL, low)
+    rthC := close
+
+// Extremos de la rueda nocturna del día de negociación en curso
+var float glxH = na
+var float glxL = na
+if abreGlobex
+    glxH := high
+    glxL := low
+else if enGlobex
+    glxH := math.max(glxH, high)
+    glxL := math.min(glxL, low)
+
+// Rango de apertura (initial balance)
+var float ibH = na
+var float ibL = na
+enVentanaIB = enRTH and not na(tsRTH) and (time - tsRTH) < minApertura * 60 * 1000
+if abreRTH
+    ibH := high
+    ibL := low
+else if enVentanaIB
+    ibH := math.max(ibH, high)
+    ibL := math.min(ibL, low)
+
+// VWAP anclado a la apertura del RTH (no al día de TradingView, que incluye ETH)
+var float acPV = 0.0
+var float acV  = 0.0
+if abreRTH
+    acPV := 0.0
+    acV := 0.0
+if enRTH
+    vol = na(volume) ? 0.0 : volume
+    acPV += hlc3 * vol
+    acV  += vol
+vwapSesion = acV > 0 ? acPV / acV : na
+
+// ATR de sesión: true range contra el cierre de la sesión anterior
+atrSesion() =>
+    float suma = 0.0
+    int   n = 0
+    if array.size(hH) >= periodoATR + 1
+        for i = 1 to periodoATR
+            idx = array.size(hH) - i
+            h = array.get(hH, idx)
+            l = array.get(hL, idx)
+            pc = array.get(hC, idx - 1)
+            suma += math.max(h - l, math.max(math.abs(h - pc), math.abs(l - pc)))
+            n += 1
+    n > 0 ? suma / n : na
+atrS = atrSesion()
+
+// Pivotes de piso sobre la sesión previa
+pp = na(prevH) ? na : (prevH + prevL + prevC) / 3.0
+rg = na(prevH) ? na : prevH - prevL
+r1 = na(pp) ? na : 2 * pp - prevL
+s1 = na(pp) ? na : 2 * pp - prevH
+r2 = na(pp) ? na : pp + rg
+s2 = na(pp) ? na : pp - rg
+r3 = na(pp) ? na : prevH + 2 * (pp - prevL)
+s3 = na(pp) ? na : prevL - 2 * (prevH - pp)
+
+// ───────────────── Dibujo: una línea + etiqueta por nivel ─────────────────
+// Se crean una sola vez y se reposicionan; así no se acumulan objetos ni se
+// toca el límite de 100 líneas del indicador.
+// `var` dentro de una función crea UNA instancia por sitio de llamada, que es
+// justo lo que hace falta: cada nivel tiene su línea y su etiqueta, se crean una
+// sola vez y después sólo se reposicionan. Ocultar = color transparente, porque
+// line.set_xy no acepta `na` en la coordenada x.
+dibujar(float precio, string texto, color col, bool mostrar, bool punteada) =>
+    var line  ln = line.new(bar_index, close, bar_index, close,
+         xloc=xloc.bar_index, color=color.new(color.gray, 100))
+    var label lb = label.new(bar_index, close, "", xloc=xloc.bar_index,
+         style=label.style_label_left, textalign=text.align_left, size=size.small,
+         color=color.new(color.gray, 100), textcolor=color.new(color.gray, 100))
+    if barstate.islast
+        visible = mostrar and not na(precio)
+        y = visible ? precio : close
+        line.set_xy1(ln, bar_index - 1, y)
+        line.set_xy2(ln, bar_index + barrasExt, y)
+        line.set_color(ln, visible ? col : color.new(col, 100))
+        line.set_width(ln, anchoLinea)
+        line.set_style(ln, punteada ? line.style_dashed : line.style_solid)
+        label.set_xy(lb, bar_index + barrasExt, y)
+        // Distancia = nivel − precio: positiva si el nivel está arriba.
+        dist = visible ? precio - close : 0.0
+        label.set_text(lb, visible ? texto + "  " + str.tostring(precio, format.mintick)
+             + "  (" + (dist > 0 ? "+" : "") + str.tostring(dist, "#.##") + ")" : "")
+        label.set_textcolor(lb, visible ? col : color.new(col, 100))
+        label.set_color(lb, color.new(color.black, 100))
+    true
+
+dibujar(prevH,  "Máx RTH previo",  colSesion,   verRTH,    false)
+dibujar(prevL,  "Mín RTH previo",  colSesion,   verRTH,    false)
+dibujar(prevC,  "Cierre RTH prev", colSesion,   verRTH,    true)
+dibujar(glxH,   "Máx Globex",      colSesion,   verGlobex, false)
+dibujar(glxL,   "Mín Globex",      colSesion,   verGlobex, false)
+dibujar(ibH,    "Alto apertura",   colSesion,   verIB,     true)
+dibujar(ibL,    "Bajo apertura",   colSesion,   verIB,     true)
+dibujar(pp,     "Pivote PP",       colSesion,   verPiv,    true)
+dibujar(r1,     "R1",              colSesion,   verPiv,    true)
+dibujar(s1,     "S1",              colSesion,   verPiv,    true)
+dibujar(r2,     "R2",              colSesion,   verPiv and verPiv23, true)
+dibujar(s2,     "S2",              colSesion,   verPiv and verPiv23, true)
+dibujar(r3,     "R3",              colSesion,   verPiv and verPiv23, true)
+dibujar(s3,     "S3",              colSesion,   verPiv and verPiv23, true)
+dibujar(na(rthO) or na(atrS) ? na : rthO + atrS, "Techo ATR", colSesion, verATR, true)
+dibujar(na(rthO) or na(atrS) ? na : rthO - atrS, "Piso ATR",  colSesion, verATR, true)
+dibujar(muroCall  > 0 ? muroCall  : na, "Muro calls", colOpciones, true, false)
+dibujar(muroPut   > 0 ? muroPut   : na, "Muro puts",  colOpciones, true, false)
+dibujar(maxPain   > 0 ? maxPain   : na, "Max pain",   colOpciones, true, true)
+dibujar(gammaCero > 0 ? gammaCero : na, "Gamma cero", colOpciones, true, true)
+
+plot(verVWAP and enRTH ? vwapSesion : na, "VWAP de sesión", color=colVWAP, linewidth=2)
+
+// ───────────────────────────── Tabla ─────────────────────────────
+// La tabla y la función que la llena van en el ámbito global: Pine no admite
+// declarar funciones dentro de un `if`.
+var table t = table.new(position.top_right, 3, 10, border_width=1,
+     frame_color=color.new(#1e2a45, 0), frame_width=1)
+
+fila(int r, string k, float v, color col) =>
+    if verTabla and barstate.islast and not na(v)
+        table.cell(t, 0, r, k, text_color=col, text_size=size.small,
+             text_halign=text.align_left, bgcolor=color.new(#111a2b, 10))
+        table.cell(t, 1, r, str.tostring(v, format.mintick), text_color=#e8edf7,
+             text_size=size.small, text_halign=text.align_right,
+             bgcolor=color.new(#111a2b, 10))
+        d = v - close
+        table.cell(t, 2, r, (d > 0 ? "+" : "") + str.tostring(d, "#.##"),
+             text_color=#8a98b5, text_size=size.small,
+             text_halign=text.align_right, bgcolor=color.new(#111a2b, 10))
+    true
+
+if verTabla and barstate.islast
+    table.cell(t, 0, 0, "Nivel", text_color=#8a98b5, text_size=size.small,
+         text_halign=text.align_left, bgcolor=color.new(#0e1626, 0))
+    table.cell(t, 1, 0, "Precio", text_color=#8a98b5, text_size=size.small,
+         text_halign=text.align_right, bgcolor=color.new(#0e1626, 0))
+    table.cell(t, 2, 0, "Dist.", text_color=#8a98b5, text_size=size.small,
+         text_halign=text.align_right, bgcolor=color.new(#0e1626, 0))
+
+fila(1, "Cierre RTH prev", prevC, colSesion)
+fila(2, "Máx RTH previo",  prevH, colSesion)
+fila(3, "Mín RTH previo",  prevL, colSesion)
+fila(4, "VWAP",            vwapSesion, colVWAP)
+fila(5, "Pivote PP",       pp, colSesion)
+fila(6, "Muro calls",      muroCall  > 0 ? muroCall  : na, colOpciones)
+fila(7, "Gamma cero",      gammaCero > 0 ? gammaCero : na, colOpciones)
+fila(8, "Max pain",        maxPain   > 0 ? maxPain   : na, colOpciones)
+fila(9, "Muro puts",       muroPut   > 0 ? muroPut   : na, colOpciones)
+
+// ───────────────────────────── Alertas ─────────────────────────────
+// `alert()` permite mensaje dinámico; se dispara una vez por barra cerrada
+// para no inundar la alerta con cada tick que oscila sobre el nivel.
+cruza(float nivel) =>
+    na(nivel) ? false :
+         (close > nivel + margenAviso and close[1] <= nivel + margenAviso) or
+         (close < nivel - margenAviso and close[1] >= nivel - margenAviso)
+
+avisar(float nivel, string nombre) =>
+    if avisarCruce and barstate.isconfirmed and cruza(nivel)
+        alert(syminfo.ticker + " cruzó " + nombre + " en " +
+             str.tostring(nivel, format.mintick), alert.freq_once_per_bar_close)
+    true
+
+avisar(prevH, "el máximo del RTH previo")
+avisar(prevL, "el mínimo del RTH previo")
+avisar(prevC, "el cierre del RTH previo")
+avisar(glxH,  "el máximo de Globex")
+avisar(glxL,  "el mínimo de Globex")
+avisar(vwapSesion, "el VWAP de sesión")
+avisar(muroCall  > 0 ? muroCall  : na, "el muro de calls")
+avisar(muroPut   > 0 ? muroPut   : na, "el muro de puts")
+avisar(gammaCero > 0 ? gammaCero : na, "el gamma cero")
+avisar(maxPain   > 0 ? maxPain   : na, "el max pain")

@@ -1,0 +1,133 @@
+# Niveles de sesión para futuros de índices (ES, MES, NQ, MNQ)
+
+Dos piezas que resuelven lo mismo desde distintos lados:
+
+| Pieza | Qué hace |
+|---|---|
+| **App web** — `web/futuros.html`, servida en `/futuros` | Calcula todo: niveles de precio **y** de opciones |
+| **Indicador de TradingView** — `trading/tradingview/NivelesSesion.pine` | Dibuja los niveles sobre el gráfico donde operás, en tiempo real |
+
+```bash
+python main.py          # http://localhost:8000/futuros
+```
+
+---
+
+## Lo primero: qué NO es esto
+
+**No es option flow.** Barridos, bloques y clasificación por lado agresor necesitan el feed
+de ticks de CME o de OPRA, que es pago. Acá no hay nada de eso, y conviene saberlo antes de
+mirar un número.
+
+Lo que sí se consiguió, y no es poco: **Yahoo no publica cadena de opciones para `ES=F` ni
+`NQ=F`, pero sí para `^SPX` y `^NDX`** — que son el mismo subyacente. Las opciones de
+índice son además un mercado más grande que las de futuros, así que el posicionamiento que
+mueve al índice está ahí. Los strikes se traducen a puntos del futuro con la base
+(futuro/índice ≈ 1,008 en ES), que incorpora tasa y dividendos; sin esa corrección todos
+los niveles quedan desplazados unos 60 puntos.
+
+Y una distinción que importa al leer la pantalla:
+
+- **Volumen por strike** = actividad de **hoy**. Es lo más cercano a "flujo" que hay gratis.
+- **Interés abierto** = posiciones que quedaron de **ayer**. Es lo estructural.
+
+En los vencimientos del mismo día el interés abierto figura en cero, porque se reporta del
+cierre anterior. No es un error del tablero: es cómo se publica el dato.
+
+## Los niveles
+
+**De precio** (velas de 5 minutos del futuro, 59 días de historial):
+
+| Nivel | Por qué está |
+|---|---|
+| Cierre, máximo y mínimo del **RTH previo** (9:30-16:00 NY) | El cierre de ayer es la referencia del hueco |
+| Máximo y mínimo de **Globex** (18:00-9:30) | Romper el extremo nocturno es la continuación más limpia |
+| **Rango de apertura** (primeros 30 min) | El initial balance del perfil de mercado |
+| **VWAP** anclado a la apertura del RTH | El precio medio que mira la mesa |
+| **Pivotes de piso** PP, R1-R3, S1-S3 | Aritmética sobre la sesión previa. Valen porque mucha gente los mira, no porque el mercado los respete |
+| **Apertura ± ATR de sesión** | Cota de lo "normal" para el día |
+
+**De opciones** (cadena de `^SPX` / `^NDX`, strikes dentro de ±5% del precio):
+
+| Nivel | Qué dice |
+|---|---|
+| **Muro de calls** | Mayor interés abierto en calls por encima: la cobertura de los vendedores frena la suba |
+| **Muro de puts** | Mayor interés abierto en puts por debajo |
+| **Max pain** | Dónde vencería sin valor la mayor cantidad de contratos. No es una predicción |
+| **Gamma cero** | Dónde cambia de signo la gamma total. Por encima, cubrir amortigua el movimiento; por debajo lo amplifica |
+
+El filtro de ±5% no es cosmético. Sin él, el "muro de puts" se iba a un strike **1.568
+puntos por debajo** del precio: una cobertura de cartera de largo plazo, dato real y
+completamente inútil para operar la sesión.
+
+La gamma no viene en el feed: se calcula con Black-Scholes a partir de la volatilidad
+implícita que sí viene. En los vencimientos del día el tiempo a vencimiento se acota por
+abajo, porque con T→0 la gamma se va al infinito.
+
+## La app web
+
+Un tablero por contrato con mosaicos de cifra, una **escalera de niveles** y tablas.
+
+Sobre la escalera: en una sesión normal hay nueve niveles dentro de 60 puntos y las
+etiquetas se pisan — la primera versión era ilegible, con 12 de 16 solapadas y 0,1 px de
+separación mínima. La línea y el punto van en el precio **real**; la etiqueta se corre lo
+mínimo para no solaparse, con un conector que la ata a su nivel. Quedaron 19 px de
+separación garantizada y cero solapamientos.
+
+Los colores de dato codifican el **origen** del nivel (precio contra opciones), no si está
+arriba o abajo: eso ya lo dice la posición en el gráfico. El par `#4a86de` / `#b8862b` pasa
+los seis controles de paleta sobre el fondo oscuro: banda de luminosidad, piso de croma,
+separación ΔE 25,5 en protanopía y 26,9 en visión normal, y contraste ≥ 3:1. El precio
+actual va en tinta de texto, porque es una referencia y no una serie.
+
+Cada fila de la tabla trae la distancia en puntos **y en dólares por contrato**, usando el
+multiplicador real: 1 punto son US$ 50 en ES y US$ 2 en MNQ. Esa diferencia de 25× es lo
+que decide si un nivel a 30 puntos importa o no.
+
+El servidor cachea: 2 minutos los niveles de precio, 15 minutos la cadena de opciones. El
+interés abierto cambia una vez por día — pedirlo cada minuto no agrega nada y castiga a un
+feed gratuito.
+
+## El indicador de TradingView
+
+Pine Script **no puede leer una cadena de opciones**: `request.security` sólo trae otros
+símbolos de TradingView, no interés abierto por strike. Así que el indicador se reparte:
+
+**En tiempo real, calculado solo** — RTH previo, Globex, rango de apertura, VWAP anclado,
+pivotes, ATR de sesión. Todo tick a tick, y **sin repintado**: cada nivel queda fijo cuando
+su sesión termina y no se vuelve a tocar.
+
+**Carga manual** — los cuatro niveles de opciones. El tablero web los muestra en un bloque
+aparte con un botón de copiar. Son cuatro números por la mañana, y como el interés abierto
+se actualiza una vez por día, no hace falta más.
+
+Incluye tabla de distancias en una esquina y **alertas con mensaje dinámico** al cruzar
+cada nivel ("ES cruzó el muro de puts en 7558.42"), que se disparan una vez por barra
+cerrada para no inundar el teléfono con cada oscilación sobre el nivel.
+
+### Instalación
+
+1. TradingView → **Pine Editor** → pegar el contenido de `NivelesSesion.pine`.
+2. **Save** y **Add to chart**.
+3. Abrir los ajustes y cargar los cuatro valores de opciones desde `/futuros`.
+
+Probalo en `ES1!`, `NQ1!` o `MNQ1!` en temporalidad intradía (1 a 15 minutos). En diario no
+tiene sentido: los niveles son de sesión.
+
+### Lo que no pude verificar
+
+**El Pine no está compilado.** No hay compilador de Pine fuera de TradingView, así que
+revisé el código a mano y corregí cuatro errores de sintaxis reales que había escrito:
+declaraciones `var` múltiples en una línea (Pine exige una por línea), una función declarada
+dentro de un `if` (no se permite), `na` en las coordenadas de `line.new` y `label.new`, y un
+signo de distancia invertido. Si al pegarlo aparece un error, decímelo con el mensaje y lo
+arreglo — pero esperá tener que iterar una vez.
+
+La matemática de los niveles sí está verificada: el módulo `quant/niveles.py` la calcula
+igual y tiene tests.
+
+---
+
+Investigación cuantitativa, **no** asesoramiento de inversión. Los niveles son referencias
+de precio, no señales de entrada: que mucha gente mire el mismo número no quiere decir que
+el mercado lo respete.

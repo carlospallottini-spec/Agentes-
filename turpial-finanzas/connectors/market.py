@@ -187,6 +187,7 @@ def velas(symbol: str, interval: str = "1d", dias: int | None = None) -> dict:
                 "points": []}
     q = res["indicators"]["quote"][0]
     op, hi, lo = q.get("open", []), q.get("high", []), q.get("low", [])
+    vol = q.get("volume", [])
     points = []
     for i, (t, c) in enumerate(zip(ts, closes)):
         if c is None:
@@ -198,6 +199,10 @@ def velas(symbol: str, interval: str = "1d", dias: int | None = None) -> dict:
             v = serie[i] if i < len(serie) else None
             if v is not None:
                 p[clave] = round(v, 6)
+        # El volumen hace falta para el VWAP, que es el nivel más mirado de la sesión.
+        v = vol[i] if i < len(vol) else None
+        if v is not None:
+            p["v"] = int(v)
         points.append(p)
     return {"symbol": symbol.upper(), "interval": interval, "dias_pedidos": dias,
             "range": f"{dias}d", "points": points}

@@ -20,6 +20,10 @@ Todo se sirve desde una sola app (FastAPI + una SPA sin dependencias externas).
   símbolos, cotiza, trae historiales, calcula Risk Scores y maneja tu watchlist en vivo.
   Explica cada término técnico y es honesto sobre lo que no se puede saber.
 - 🧮 **Risk Score** de acciones (framework de 3 pilares, abajo).
+- 📐 **Niveles de sesión para futuros de índices** (ES, MES, NQ, MNQ): RTH previo, Globex,
+  rango de apertura, VWAP, pivotes y ATR, más los niveles que salen de la cadena de
+  opciones del índice equivalente (muros de interés abierto, max pain, gamma cero). Con
+  app web e indicador de TradingView — ver [`docs/futuros.md`](./docs/futuros.md).
 - 📐 **Motor cuantitativo**: calibra un proceso de **Ornstein-Uhlenbeck** sobre el precio
   (fuerza restauradora, **half-life** y curva de decaimiento), estima **regímenes de
   mercado con cadenas de Markov**, testea **cointegración de pares** y corre backtests
@@ -71,6 +75,9 @@ y el **half-life** es lo que hace operable al modelo: dice en cuántos días se 
 | `quant/scan.py` | Significancia del Sharpe, Bonferroni y Benjamini-Hochberg |
 | `quant/momentum.py` | Momentum cross-sectional y time-series, con nulo por permutación |
 | `quant/intradia.py` | Motores de sesión (compra en la apertura, sale en el cierre) y su nulo |
+| `quant/niveles.py` | Niveles de sesión de futuros: RTH, Globex, apertura, VWAP, pivotes, ATR |
+| `quant/opciones.py` | Muros de interés abierto, max pain y gamma desde la cadena del índice |
+| `quant/futuros.py` | Tablero que junta ambos y traduce strikes a puntos del futuro |
 | `quant/optimizacion.py` | Walk-forward y Sharpe desinflado (descuenta por combinaciones probadas) |
 | `quant/regimen_vol.py` | Regímenes de VIX (bajo / 17-21 / alto) y métricas condicionadas |
 | `quant/engine.py` | Orquesta todo con datos reales de mercado |
@@ -121,7 +128,7 @@ La matemática completa, con derivaciones y limitaciones, está en
 ```bash
 python turpial.py --quant KO      # OU + Markov + backtest de un activo
 python turpial.py --par EWA EWC   # cointegración y OU sobre el spread
-python tests/test_quant.py        # 49 tests contra procesos simulados, sin red
+python tests/test_quant.py        # 58 tests contra procesos simulados, sin red
 ```
 
 ### Llevarlo a un tester real
@@ -174,6 +181,8 @@ python turpial.py --par EWA EWC        # cointegración de un par
 | `POST /api/chat` | El agente IA (body: `{"messages":[...]}`) |
 | `GET /api/quant/{symbol}` | OU (θ, μ, half-life, curva de decaimiento) + Markov + backtest |
 | `GET /api/quant/par/{a}/{b}` | Cointegración de Engle-Granger + OU sobre el spread |
+| `GET /futuros` | Tablero de niveles de sesión para ES / MES / NQ / MNQ |
+| `GET /api/futuros/{symbol}` | Niveles de precio + de opciones en JSON |
 | `GET /api/score/{ticker}` | Risk Score en JSON |
 | `GET /api/earnings/{ticker}` | Próxima fecha de earnings (estimada) |
 | `GET /analyze/{ticker}` | Dashboard de Risk Score (HTML autocontenido) |

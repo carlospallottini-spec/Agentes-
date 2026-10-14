@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niveles de sesión · Futuros de índices</title>
+<style>
+  :root{
+    --bg:#0a0e18; --panel:#111a2b; --panel2:#0e1626; --line:#1e2a45;
+    --txt:#e8edf7; --muted:#8a98b5; --accent:#39d98a; --accent2:#ffd166;
+    --bad:#ff5d73;
+    /* Colores de DATO (no de interfaz). Validados para modo oscuro sobre #111a2b:
+       banda de luminosidad OKLCH 0.48-0.67, separación CVD ΔE 25.5 en protanopía,
+       26.9 en visión normal, contraste >=3:1. No se usan para texto. */
+    --serie-sesion:#4a86de; --serie-opciones:#b8862b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:16px}
+  header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+  h1{font-size:19px;margin:0;font-weight:800;letter-spacing:-.2px}
+  .sub{color:var(--muted);font-size:12.5px}
+  a{color:var(--accent)}
+  .tabs{display:flex;gap:6px;margin:12px 0;flex-wrap:wrap}
+  .tab{padding:8px 13px;border-radius:10px;border:1px solid var(--line);
+    background:var(--panel);cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+  .tab.active{color:var(--bg);background:var(--accent);border-color:var(--accent)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:14px 16px;margin-bottom:14px}
+  h2{font-size:14px;margin:0 0 4px;font-weight:700}
+  .hero{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .hero .px{font-size:34px;font-weight:800;font-variant-numeric:tabular-nums;
+    letter-spacing:-1px}
+  .up{color:var(--accent)} .down{color:var(--bad)} .flat{color:var(--muted)}
+  /* Mosaicos de cifra: forma correcta para un número único sin gráfico */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:8px;
+    margin-top:12px}
+  .tile{background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+    padding:9px 11px}
+  .tile .k{font-size:10.5px;color:var(--muted);letter-spacing:.3px}
+  .tile .v{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:1px}
+  .tile .h{font-size:10.5px;color:var(--muted);margin-top:1px}
+  /* Escalera de precios */
+  .ladder-wrap{position:relative;margin-top:8px}
+  svg.ladder{width:100%;display:block;overflow:visible}
+  .legend{display:flex;gap:16px;align-items:center;margin:8px 0 2px;font-size:12px;
+    color:var(--muted);flex-wrap:wrap}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;
+    margin-right:6px;vertical-align:-2px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;
+    font-variant-numeric:tabular-nums}
+  th{color:var(--muted);font-weight:600;text-align:right;padding:6px 7px;
+    border-bottom:1px solid var(--line);font-size:11.5px}
+  td{text-align:right;padding:6px 7px;border-bottom:1px solid var(--panel2)}
+  th.l,td.l{text-align:left}
+  tr.sobre td{background:rgba(74,134,222,.05)}
+  .chip{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;
+    vertical-align:-1px}
+  .nota{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:8px}
+  .warn{border-left:3px solid var(--accent2);background:var(--panel2);
+    border-radius:0 10px 10px 0;padding:11px 13px;font-size:12.5px;line-height:1.65;
+    margin-bottom:14px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  .empty{color:var(--muted);text-align:center;padding:24px 10px;font-size:13px}
+  footer{color:var(--muted);font-size:11px;text-align:center;padding:10px 0 24px;
+    line-height:1.7}
+  /* Tooltip del gráfico */
+  #tip{position:fixed;pointer-events:none;background:var(--panel);
+    border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:12px;
+    max-width:260px;box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:0;transition:opacity .1s;
+    z-index:20;line-height:1.5}
+  #tip b{font-size:12.5px}
+  #tip .t-px{font-variant-numeric:tabular-nums;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📐 Niveles de sesión</h1>
+    <span class="sub">Futuros de índices · precio y posicionamiento en opciones</span>
+  </header>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="warn" id="aviso">Cargando…</div>
+
+  <section class="card" id="resumen"><div class="empty">Cargando tablero…</div></section>
+
+  <section class="card">
+    <h2>Escalera de niveles</h2>
+    <div class="sub">Cada marca es un nivel ubicado por su precio. La línea blanca es el
+      precio actual. Pasá el mouse o tocá una marca para ver de dónde sale.</div>
+    <div class="legend">
+      <span><i style="background:var(--serie-sesion)"></i>Precio y sesión</span>
+      <span><i style="background:var(--serie-opciones)"></i>Opciones</span>
+      <span><i style="background:var(--txt)"></i>Precio actual</span>
+    </div>
+    <div class="ladder-wrap"><svg class="ladder" id="ladder"></svg></div>
+  </section>
+
+  <section class="card" id="tv-card" style="display:none">
+    <h2>Para el indicador de TradingView</h2>
+    <div class="sub">Pine Script no puede leer una cadena de opciones, así que estos
+      cuatro valores se cargan a mano en el indicador. Cambian una vez por día.</div>
+    <div class="tiles" id="tv-vals"></div>
+    <button id="tv-copy" class="tab" style="margin-top:10px;color:var(--txt)">
+      Copiar los cuatro valores</button>
+    <span class="sub" id="tv-ok" style="margin-left:10px"></span>
+    <div class="nota">Indicador en <code>trading/tradingview/NivelesSesion.pine</code>.
+      Los niveles de sesión (RTH previo, Globex, apertura, VWAP, pivotes, ATR) los calcula
+      solo y en tiempo real; sólo estos cuatro son manuales.</div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Todos los niveles</h2>
+      <div class="sub">Distancia en puntos y en dólares por contrato.</div>
+      <div id="tabla-niveles"></div>
+    </section>
+    <section class="card">
+      <h2>Concentración en opciones</h2>
+      <div class="sub">Volumen = actividad de hoy. Interés abierto = posiciones de ayer.</div>
+      <div id="tabla-opciones"></div>
+    </section>
+  </div>
+
+  <footer>
+    Datos de mercado vía Yahoo Finance · cadena de opciones del índice equivalente.<br>
+    Investigación cuantitativa, <b>no</b> asesoramiento de inversión.
+  </footer>
+</div>
+<div id="tip"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const API = p => fetch(p).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)));
+let SYM = "ES=F", DATA = null;
+
+const fmt = (v, d = 2) => v == null ? "—"
+  : Number(v).toLocaleString("es-AR", {minimumFractionDigits: d, maximumFractionDigits: d});
+const sgn = (v, d = 2) => v == null ? "—" : (v > 0 ? "+" : "") + fmt(v, d);
+
+async function cargarContratos(){
+  let cs = [];
+  try{ cs = await API("/api/futuros/contratos"); }catch(e){}
+  const host = $("#tabs"); host.innerHTML = "";
+  cs.forEach(c => {
+    const el = document.createElement("div");
+    el.className = "tab" + (c.symbol === SYM ? " active" : "");
+    el.textContent = c.symbol.replace("=F", "");
+    el.title = c.nombre;
+    el.onclick = () => { SYM = c.symbol; cargarContratos(); cargar(); };
+    host.appendChild(el);
+  });
+}
+
+async function cargar(){
+  $("#resumen").innerHTML = '<div class="empty">Cargando tablero…</div>';
+  try{ DATA = await API("/api/futuros/" + encodeURIComponent(SYM)); }
+  catch(e){
+    $("#resumen").innerHTML = '<div class="empty">' + ((e && e.detail) || "No se pudo cargar.") + '</div>';
+    return;
+  }
+  $("#aviso").textContent = DATA.aviso;
+  pintarResumen(); pintarEscalera(); pintarTablaNiveles(); pintarOpciones();
+  pintarTradingView();
+}
+
+function pintarResumen(){
+  const d = DATA, s = d.sesion || {}, o = d.opciones || {};
+  const dir = d.cambio_pct == null ? "flat" : (d.cambio_pct > 0 ? "up" : (d.cambio_pct < 0 ? "down" : "flat"));
+  let h = '<div class="hero"><div><div class="sub">' + d.nombre + ' · ' + d.symbol + '</div>' +
+    '<div class="px">' + fmt(d.precio) + '</div></div>' +
+    '<div class="' + dir + '" style="font-weight:700">' + sgn(d.cambio_pct) + '%</div>' +
+    '<div class="sub">1 punto = US$ ' + fmt(d.valor_punto, 2) + ' · opciones de ' +
+    d.indice_opciones + '</div></div>';
+
+  h += '<div class="tiles">';
+  const tile = (k, v, hint) => '<div class="tile"><div class="k">' + k + '</div><div class="v">' +
+    v + '</div>' + (hint ? '<div class="h">' + hint + '</div>' : '') + '</div>';
+  if(s.rth_previo){
+    h += tile("Cierre RTH previo", fmt(s.rth_previo.c), "referencia del hueco");
+    h += tile("Rango RTH previo", fmt(s.rth_previo.h - s.rth_previo.l, 2),
+              fmt(s.rth_previo.l) + " – " + fmt(s.rth_previo.h));
+  }
+  if(s.hueco_puntos != null) h += tile("Hueco de apertura", sgn(s.hueco_puntos), sgn(s.hueco_pct, 2) + "%");
+  if(s.atr_sesion) h += tile("ATR de sesión", fmt(s.atr_sesion, 1), "rango normal esperado");
+  if(s.vwap) h += tile("VWAP", fmt(s.vwap), "medio ponderado por volumen");
+  if(s.globex) h += tile("Rango Globex", fmt(s.globex.h - s.globex.l, 2),
+                         fmt(s.globex.l) + " – " + fmt(s.globex.h));
+  if(o.ok){
+    h += tile("Régimen de gamma", (o.gex_total > 0 ? "positiva" : "negativa"),
+              o.gex_total > 0 ? "cobertura amortigua" : "cobertura amplifica");
+    if(o.ratio_put_call_vol) h += tile("P/C volumen hoy", fmt(o.ratio_put_call_vol, 2),
+                                       "puts sobre calls");
+  }
+  h += '</div>';
+  $("#resumen").innerHTML = h;
+}
+
+/* ---- Escalera: eje de precio compartido, marca por nivel, etiqueta directa ----
+   Los niveles se agolpan: en una sesión normal hay nueve dentro de 60 puntos y las
+   etiquetas se pisan. La línea y el punto van en el precio REAL; la etiqueta se corre
+   lo mínimo para no solaparse, con un conector que la ata a su nivel. */
+function colocarEtiquetas(ys, alto, minSep){
+  // Desplazamiento voraz hacia abajo y después corrección desde abajo, para que
+  // ninguna etiqueta se salga del lienzo.
+  const n = ys.length, out = ys.slice();
+  for(let i = 1; i < n; i++)
+    if(out[i] - out[i-1] < minSep) out[i] = out[i-1] + minSep;
+  const excedente = out[n-1] - (alto - 8);
+  if(excedente > 0){
+    out[n-1] = alto - 8;
+    for(let i = n - 2; i >= 0; i--)
+      if(out[i+1] - out[i] < minSep) out[i] = out[i+1] - minSep;
+  }
+  return out;
+}
+
+function pintarEscalera(){
+  const svg = $("#ladder");
+  const niveles = (DATA.niveles || []).filter(n => n.precio != null);
+  if(!niveles.length){ svg.innerHTML = ""; return; }
+
+  const px = DATA.precio;
+  const todos = niveles.map(n => n.precio).concat([px]);
+  let lo = Math.min(...todos), hi = Math.max(...todos);
+  const pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad;
+
+  const W = svg.clientWidth || 900;
+  const SEP = 19;
+  const H = Math.max(320, niveles.length * SEP + 56);
+  const mT = 18, mB = 22, mL = 92, mR = 16;
+  const y = v => mT + (H - mT - mB) * (hi - v) / (hi - lo);
+
+  const yReal = niveles.map(n => y(n.precio));
+  const yEtiq = colocarEtiquetas(yReal, H - mB, SEP);
+
+  let g = '';
+  // Rejilla recesiva
+  for(let i = 0; i <= 4; i++){
+    const v = hi - (hi - lo) * i / 4, yy = y(v);
+    g += `<line x1="${mL}" y1="${yy}" x2="${W - mR}" y2="${yy}" stroke="var(--line)" stroke-width="1"/>`;
+    g += `<text x="${mL - 10}" y="${yy + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${fmt(v, 0)}</text>`;
+  }
+
+  const xFin = W - mR - 4;
+  niveles.forEach((n, i) => {
+    const yr = yReal[i], ye = yEtiq[i];
+    const col = n.origen === "opciones" ? "var(--serie-opciones)" : "var(--serie-sesion)";
+    g += `<g class="nivel" data-i="${i}" style="cursor:pointer">`;
+    // Objetivo de hover: la banda de la ETIQUETA, que no se solapa con las vecinas
+    g += `<rect x="${mL}" y="${ye - SEP/2}" width="${xFin - mL}" height="${SEP}" fill="transparent"/>`;
+    // La marca, en el precio verdadero
+    g += `<line x1="${mL}" y1="${yr}" x2="${xFin}" y2="${yr}" stroke="${col}" stroke-width="2" stroke-linecap="round" opacity="0.55"/>`;
+    g += `<circle cx="${xFin}" cy="${yr}" r="4.5" fill="${col}" stroke="var(--panel)" stroke-width="2"/>`;
+    // Conector cuando la etiqueta se tuvo que correr
+    if(Math.abs(ye - yr) > 2)
+      g += `<path d="M ${mL + 4} ${ye} L ${mL + 14} ${ye} L ${mL + 24} ${yr}" fill="none" stroke="${col}" stroke-width="1" opacity="0.5"/>`;
+    g += `<text x="${mL + 28}" y="${ye + 4}" font-size="11.5" fill="var(--txt)">${n.nombre}</text>`;
+    g += `<text x="${xFin - 14}" y="${ye + 4}" text-anchor="end" font-size="11.5" fill="var(--muted)">${fmt(n.precio)} · ${sgn(n.distancia)}</text>`;
+    g += `</g>`;
+  });
+
+  // Precio actual: referencia, no serie -> tinta de texto, no color de dato
+  const yp = y(px);
+  g += `<line x1="${mL}" y1="${yp}" x2="${W - mR}" y2="${yp}" stroke="var(--txt)" stroke-width="2" stroke-dasharray="6 4"/>`;
+  g += `<rect x="${mL - 86}" y="${yp - 10}" width="80" height="20" rx="5" fill="var(--txt)"/>`;
+  g += `<text x="${mL - 46}" y="${yp + 4}" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--bg)">${fmt(px)}</text>`;
+
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("height", H);
+  svg.innerHTML = g;
+
+  svg.querySelectorAll(".nivel").forEach(el => {
+    const n = niveles[+el.dataset.i];
+    el.addEventListener("mouseenter", ev => mostrarTip(ev, n));
+    el.addEventListener("mousemove", ev => mostrarTip(ev, n));
+    el.addEventListener("mouseleave", ocultarTip);
+    el.addEventListener("click", ev => mostrarTip(ev, n));
+  });
+}
+
+function mostrarTip(ev, n){
+  const t = $("#tip");
+  const usd = DATA.valor_punto ? (" · US$ " + sgn(n.distancia * DATA.valor_punto, 0) + " por contrato") : "";
+  t.innerHTML = '<b>' + n.nombre + '</b><br><span class="t-px">' + fmt(n.precio) +
+    ' · ' + sgn(n.distancia) + ' puntos' + usd + '</span>' +
+    (n.dato ? '<br><span class="t-px">' + n.dato + '</span>' : '') +
+    (n.nota ? '<br>' + n.nota : '');
+  t.style.opacity = 1;
+  const r = t.getBoundingClientRect();
+  let x = ev.clientX + 14, yy = ev.clientY + 14;
+  if(x + r.width > window.innerWidth - 10) x = ev.clientX - r.width - 14;
+  if(yy + r.height > window.innerHeight - 10) yy = ev.clientY - r.height - 14;
+  t.style.left = x + "px"; t.style.top = yy + "px";
+}
+function ocultarTip(){ $("#tip").style.opacity = 0; }
+
+function pintarTablaNiveles(){
+  const ns = DATA.niveles || [];
+  if(!ns.length){ $("#tabla-niveles").innerHTML = '<div class="empty">Sin niveles.</div>'; return; }
+  let h = '<table><tr><th class="l">Nivel</th><th>Precio</th><th>Dist.</th>' +
+          '<th>US$/contrato</th><th class="l">Tipo</th></tr>';
+  ns.forEach(n => {
+    const col = n.origen === "opciones" ? "var(--serie-opciones)" : "var(--serie-sesion)";
+    const sobre = n.distancia > 0 ? ' class="sobre"' : '';
+    h += '<tr' + sobre + '><td class="l"><span class="chip" style="background:' + col +
+      '"></span>' + n.nombre + '</td><td>' + fmt(n.precio) + '</td><td>' + sgn(n.distancia) +
+      '</td><td>' + (DATA.valor_punto ? sgn(n.distancia * DATA.valor_punto, 0) : "—") +
+      '</td><td class="l">' + n.tipo + '</td></tr>';
+  });
+  h += '</table><div class="nota">Las filas con fondo tenue están por encima del precio ' +
+       'actual. El dólar por contrato usa el multiplicador de ' + DATA.symbol + '.</div>';
+  $("#tabla-niveles").innerHTML = h;
+}
+
+function pintarOpciones(){
+  const o = DATA.opciones || {};
+  if(!o.ok){ $("#tabla-opciones").innerHTML = '<div class="empty">' +
+      (o.motivo || "Sin cadena de opciones.") + '</div>'; return; }
+  const bloque = (titulo, filas, unidad) => {
+    if(!filas || !filas.length) return "";
+    let h = '<table style="margin-bottom:12px"><caption style="text-align:left;' +
+      'font-weight:700;font-size:12px;padding:4px 2px">' + titulo + '</caption>' +
+      '<tr><th>Strike</th><th>En ' + DATA.symbol.replace("=F","") + '</th><th>Dist.</th><th>' + unidad + '</th></tr>';
+    filas.forEach(f => {
+      h += '<tr><td>' + fmt(f.strike, 0) + '</td><td>' + fmt(f.precio_futuro) + '</td><td>' +
+        sgn(f.distancia) + '</td><td>' + Number(f.valor).toLocaleString("es-AR") + '</td></tr>';
+    });
+    return h + '</table>';
+  };
+  let h = '<div class="tiles" style="margin:4px 0 12px">' +
+    '<div class="tile"><div class="k">GEX total</div><div class="v">' + fmt(o.gex_total, 2) +
+    '</div><div class="h">mil millones por 1%</div></div>' +
+    '<div class="tile"><div class="k">P/C interés abierto</div><div class="v">' +
+    fmt(o.ratio_put_call_oi, 2) + '</div><div class="h">' +
+    Number(o.oi_puts).toLocaleString("es-AR") + ' / ' + Number(o.oi_calls).toLocaleString("es-AR") +
+    '</div></div></div>';
+  h += bloque("Volumen de hoy · calls", o.top_volumen_calls, "contratos");
+  h += bloque("Volumen de hoy · puts", o.top_volumen_puts, "contratos");
+  h += bloque("Interés abierto · calls", o.top_oi_calls, "contratos");
+  h += bloque("Interés abierto · puts", o.top_oi_puts, "contratos");
+  h += '<div class="nota">Strikes dentro de ±' + o.rango_pct + '% del precio (' +
+       o.n_strikes_cerca + ' de ' + o.n_strikes + '). Fuera de esa banda aparecen ' +
+       'coberturas de largo plazo que no mueven la sesión.</div>';
+  $("#tabla-opciones").innerHTML = h;
+}
+
+/* ---- Valores para cargar a mano en el indicador de TradingView ---- */
+function pintarTradingView(){
+  const ns = (DATA.niveles || []).filter(n => n.origen === "opciones");
+  if(!ns.length){ $("#tv-card").style.display = "none"; return; }
+  const campos = {"Muro de calls": "Muro de calls", "Muro de puts": "Muro de puts",
+                  "Max pain": "Max pain", "Gamma cero": "Gamma cero"};
+  let h = "", texto = "";
+  Object.keys(campos).forEach(k => {
+    const n = ns.find(x => x.nombre === k);
+    const v = n ? n.precio : null;
+    h += '<div class="tile"><div class="k">' + k + '</div><div class="v">' +
+         (v == null ? "—" : fmt(v)) + '</div><div class="h">' +
+         (n ? sgn(n.distancia) + " puntos" : "sin dato") + '</div></div>';
+    if(v != null) texto += k + ": " + v.toFixed(2) + "\n";
+  });
+  $("#tv-vals").innerHTML = h;
+  $("#tv-card").style.display = "";
+  $("#tv-copy").onclick = async () => {
+    const payload = DATA.symbol + " · " + new Date().toLocaleDateString("es-AR") + "\n" + texto;
+    try{ await navigator.clipboard.writeText(payload); $("#tv-ok").textContent = "copiado"; }
+    catch(e){ $("#tv-ok").textContent = "copiá a mano: " + texto.replace(/\n/g, " · "); }
+    setTimeout(() => { $("#tv-ok").textContent = ""; }, 2500);
+  };
+}
+
+window.addEventListener("resize", () => { if(DATA) pintarEscalera(); });
+setInterval(() => { if(!document.hidden) cargar(); }, 120000);
+cargarContratos(); cargar();
+</script>
+</body>
+</html>

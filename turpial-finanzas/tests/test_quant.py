@@ -14,8 +14,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from quant import (backtest, intradia, markov, momentum, optimizacion, ou, pairs,  # noqa: E402
-                   regimen_vol, scan)
+from quant import (backtest, intradia, markov, momentum, niveles, opciones,  # noqa: E402
+                   optimizacion, ou, pairs, regimen_vol, scan)
 from quant.stats import chi2_sf, normal_cdf, ols, quantile  # noqa: E402
 from quant.strategies import FLAT, LONG, SHORT, ou_position, regime_allows  # noqa: E402
 
@@ -616,6 +616,143 @@ def test_estabilidad_es_determinista():
     assert len(modas) == 1          # el empate se resuelve siempre igual
     est = optimizacion.estabilidad([{"params": {"x": 5}}] * 4)
     assert est["x"]["estabilidad_pct"] == 100.0
+
+
+# ------------------------------------------ niveles de sesión de futuros
+def _barra(ts, o, h, l, c, v=1000):
+    return {"t": ts, "o": o, "h": h, "l": l, "c": c, "v": v}
+
+
+def test_horario_de_nueva_york_con_dst():
+    """Verano -4, invierno -5, con los domingos de cambio en su lugar."""
+    import calendar
+    enero = calendar.timegm((2026, 1, 15, 18, 0, 0, 0, 0, 0))
+    julio = calendar.timegm((2026, 7, 15, 18, 0, 0, 0, 0, 0))
+    assert niveles.offset_ny(enero) == -5
+    assert niveles.offset_ny(julio) == -4
+    # 14:30 UTC en julio son las 10:30 de Nueva York: dentro del RTH.
+    media = calendar.timegm((2026, 7, 15, 14, 30, 0, 0, 0, 0))
+    assert niveles.hora_ny(media).hour == 10
+
+
+def test_agrupar_separa_rth_de_globex():
+    """La rueda nocturna pertenece al día de negociación siguiente, no al propio."""
+    import calendar
+    barras = []
+    # 2026-07-14, 22:00 UTC = 18:00 NY -> Globex del día 15
+    barras.append(_barra(calendar.timegm((2026, 7, 14, 22, 0, 0, 0, 0, 0)), 100, 102, 99, 101))
+    # 2026-07-15, 13:35 UTC = 9:35 NY -> RTH del día 15
+    barras.append(_barra(calendar.timegm((2026, 7, 15, 13, 35, 0, 0, 0, 0)), 101, 105, 100, 104))
+    # 2026-07-15, 20:30 UTC = 16:30 NY -> pausa, se descarta
+    barras.append(_barra(calendar.timegm((2026, 7, 15, 20, 30, 0, 0, 0, 0)), 104, 110, 90, 95))
+    ses = niveles.agrupar_sesiones(barras)
+    dia15 = [s for s in ses if s["dia"] == "2026-07-15"][0]
+    assert dia15["globex"]["h"] == 102          # la nocturna del 14 cuenta para el 15
+    assert dia15["rth"]["h"] == 105
+    assert dia15["rth"]["l"] == 100
+    # La barra de la pausa no entra en ningún tramo.
+    assert dia15["rth"]["h"] != 110
+
+
+def test_pivotes_son_la_formula_de_piso():
+    p = niveles.pivotes(110.0, 90.0, 100.0)
+    assert abs(p["PP"] - 100.0) < 1e-12
+    assert abs(p["R1"] - 110.0) < 1e-12          # 2·PP − mínimo
+    assert abs(p["S1"] - 90.0) < 1e-12           # 2·PP − máximo
+    assert abs(p["R2"] - 120.0) < 1e-12          # PP + rango
+    assert abs(p["S2"] - 80.0) < 1e-12
+    assert p["R3"] > p["R2"] > p["R1"] > p["PP"] > p["S1"] > p["S2"] > p["S3"]
+
+
+def test_vwap_necesita_volumen():
+    """Sin volumen devuelve None: un promedio simple no es un VWAP."""
+    sin = [{"t": 0, "o": 10, "h": 11, "l": 9, "c": 10, "v": 0}]
+    assert niveles.vwap(sin) is None
+    con = [{"t": 0, "o": 10, "h": 12, "l": 9, "c": 12, "v": 100},
+           {"t": 300, "o": 12, "h": 12, "l": 12, "c": 12, "v": 300}]
+    v = niveles.vwap(con)
+    assert v is not None
+    # El segundo precio pesa el triple, así que el VWAP tiene que estar más cerca de 12.
+    assert 11.0 < v <= 12.0
+
+
+def test_rango_apertura_toma_solo_los_primeros_minutos():
+    barras = [_barra(i * 300, 100, 100 + i, 100 - i, 100) for i in range(12)]
+    ib = niveles.rango_apertura(barras, minutos=30)   # 30 min = 6 velas de 5m
+    assert ib["barras"] == 6
+    assert ib["alto"] == 105 and ib["bajo"] == 95
+
+
+# --------------------------------------------- niveles desde las opciones
+def test_gamma_es_maxima_en_el_dinero():
+    """La gamma de Black-Scholes pica en el strike at-the-money y cae a los costados."""
+    atm = opciones.gamma_bs(100.0, 100.0, 0.20, 0.08)
+    otm = opciones.gamma_bs(100.0, 130.0, 0.20, 0.08)
+    itm = opciones.gamma_bs(100.0, 70.0, 0.20, 0.08)
+    assert atm > otm and atm > itm
+    assert opciones.gamma_bs(100.0, 100.0, 0.0, 0.08) == 0.0     # sin vol, sin gamma
+    # El piso de T evita que con vencimiento cero la gamma se vaya al infinito.
+    assert math.isfinite(opciones.gamma_bs(100.0, 100.0, 0.20, 0.0))
+
+
+def test_max_pain_en_una_cadena_construida():
+    """El max pain cae donde el valor intrínseco total es mínimo.
+
+    La cadena se carga de forma ASIMÉTRICA a propósito. Con interés abierto simétrico el
+    dolor empata en varios strikes y el test no verifica nada: la primera versión de este
+    fixture tenía tres strikes con dolor idéntico. Acá los calls van abajo, los puts
+    arriba y con más peso, de modo que el mínimo sea único.
+
+    Se compara contra una implementación independiente de la definición, no contra un
+    número elegido a mano.
+    """
+    carga = {90.0: ("oi_call", 1000), 95.0: ("oi_call", 1000),
+             105.0: ("oi_put", 3000), 110.0: ("oi_put", 1000)}
+    por_strike = {}
+    for k in (90.0, 95.0, 100.0, 105.0, 110.0):
+        por_strike[k] = {"strike": k, "oi_call": 0, "oi_put": 0, "vol_call": 0,
+                         "vol_put": 0, "gamma_call": 0.0, "gamma_put": 0.0,
+                         "iv_call": None, "iv_put": None}
+    for k, (campo, v) in carga.items():
+        por_strike[k][campo] = v
+
+    dolores = {}
+    for s_ in sorted(por_strike):
+        dolores[s_] = sum((s_ - k) * por_strike[k]["oi_call"] if k < s_
+                          else ((k - s_) * por_strike[k]["oi_put"] if k > s_ else 0)
+                          for k in por_strike)
+    minimo = min(dolores.values())
+    ganadores = [k for k, v in dolores.items() if v == minimo]
+    assert len(ganadores) == 1, f"el fixture quedó degenerado: empatan {ganadores}"
+    assert opciones.max_pain(por_strike) == ganadores[0]
+
+
+def test_strikes_se_traducen_a_puntos_del_futuro():
+    """Sin corregir por la base, los niveles quedan desplazados decenas de puntos."""
+    cadena = {"status": "ok", "selected_expiration": None,
+              "calls": [{"strike": 7800.0, "open_interest": 5000, "volume": 100, "iv": 16.0}],
+              "puts": [{"strike": 7700.0, "open_interest": 9000, "volume": 200, "iv": 18.0}]}
+    r = opciones.analizar([cadena], spot_indice=7800.0, spot_futuro=7860.0, rango_pct=5.0)
+    assert r["ok"]
+    base_exacta = 7860.0 / 7800.0
+    assert abs(r["base"] - base_exacta) < 1e-5     # el informe la redondea a 5 decimales
+    muro = [n for n in r["niveles"] if n["nombre"] == "Muro de puts"]
+    assert muro, "debería detectar el muro de puts por debajo del precio"
+    # strike 7700 del índice -> ~7759 en puntos del futuro. Se compara contra la base
+    # EXACTA, no contra la redondeada del informe, con tolerancia de medio centavo.
+    assert abs(muro[0]["precio"] - 7700.0 * base_exacta) < 0.005
+    assert muro[0]["precio"] > 7700.0              # el futuro cotiza sobre el índice
+
+
+def test_filtro_de_cercania_descarta_coberturas_lejanas():
+    """Un muro a 20% del precio es real y no sirve para operar la sesión."""
+    cadena = {"status": "ok", "selected_expiration": None, "calls": [],
+              "puts": [{"strike": 6200.0, "open_interest": 90000, "volume": 10, "iv": 25.0},
+                       {"strike": 7700.0, "open_interest": 4000, "volume": 10, "iv": 18.0}]}
+    r = opciones.analizar([cadena], 7800.0, 7860.0, rango_pct=5.0)
+    muro = [n for n in r["niveles"] if n["nombre"] == "Muro de puts"][0]
+    assert muro["strike"] == 7700.0      # no el de 6200, aunque tenga 20 veces más OI
+    assert r["n_strikes_cerca"] < r["n_strikes"]
 
 
 def main() -> int:

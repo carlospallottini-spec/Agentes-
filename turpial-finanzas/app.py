@@ -17,6 +17,7 @@ from dashboard.render import render_html, write_dashboard
 from oracle import scheduler, store, watchlist
 from oracle.earnings import estimate_next_earnings
 from quant import engine as quant_engine
+from quant import futuros as quant_futuros
 from connectors import sec_edgar as sec
 
 app = FastAPI(title="Turpial Finanzas", description="Plataforma de inversión todo-en-uno")
@@ -86,6 +87,29 @@ def api_chat(payload: dict = Body(...)) -> JSONResponse:
         return JSONResponse(content=chat(messages))
     except RuntimeError as e:  # típicamente falta ANTHROPIC_API_KEY
         raise HTTPException(status_code=503, detail=str(e))
+
+
+# ------------------------------------------------------- Futuros de índices
+@app.get("/futuros", response_class=HTMLResponse)
+def pagina_futuros() -> FileResponse:
+    return FileResponse(WEB_DIR / "futuros.html")
+
+
+@app.get("/api/futuros/contratos")
+def api_futuros_contratos() -> JSONResponse:
+    return JSONResponse(content=quant_futuros.contratos())
+
+
+@app.get("/api/futuros/{symbol:path}")
+def api_futuros(symbol: str, apertura: int = Query(30, ge=5, le=120),
+                rango_pct: float = Query(5.0, ge=1.0, le=20.0),
+                vencimientos: int = Query(4, ge=1, le=8)) -> JSONResponse:
+    """Tablero de sesión: niveles de precio + niveles de opciones de un contrato."""
+    rep = quant_futuros.tablero(symbol, minutos_apertura=apertura,
+                                rango_pct=rango_pct, n_vencimientos=vencimientos)
+    if not rep.get("ok"):
+        raise HTTPException(status_code=404, detail=rep.get("motivo", "No disponible."))
+    return JSONResponse(content=rep)
 
 
 # ------------------------------------------------------------ Cuantitativo
