@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import datetime, timezone
 
 from quant import futuros as fu
@@ -47,12 +48,24 @@ DIR_DATOS = "data/opciones"
 
 
 def capturar(indice: str = "^SPX", n_vencimientos: int = 3,
-             rango_pct: float = RANGO_PCT) -> dict:
-    """Una foto del interés abierto y el volumen por strike, más los agregados."""
-    cadenas, spot = fu._cadenas(indice, n_vencimientos)
+             rango_pct: float = RANGO_PCT, esperas: tuple = (15, 45, 90)) -> dict:
+    """Una foto del interés abierto y el volumen por strike, más los agregados.
+
+    Reintenta con esperas largas porque Yahoo limita por tasa y una tanda de pedidos puede
+    volver vacía durante un rato. Esto corre una vez por día: gastar dos minutos esperando
+    es gratis comparado con perder la observación, que no se recupera nunca.
+    """
+    cadenas, spot = None, None
+    for i, espera in enumerate((0,) + tuple(esperas)):
+        if espera:
+            time.sleep(espera)
+        cadenas, spot = fu._cadenas(indice, n_vencimientos)
+        if cadenas and spot:
+            break
     if not cadenas or not spot:
         return {"ok": False, "indice": indice,
-                "motivo": "El feed no devolvió cadena de opciones."}
+                "motivo": f"El feed no devolvió cadena de opciones tras "
+                          f"{len(esperas) + 1} intentos espaciados."}
 
     ahora = datetime.now(tz=timezone.utc)
     lo, hi = spot * (1 - rango_pct / 100), spot * (1 + rango_pct / 100)
@@ -95,6 +108,13 @@ def capturar(indice: str = "^SPX", n_vencimientos: int = 3,
         # aunque en UTC ya sea el siguiente.
         "sesion": nv.hora_ny(int(ahora.timestamp())).date().isoformat(),
         "momento": ahora.isoformat(timespec="seconds"),
+        # Antes de la apertura o después del cierre. Importa porque el interés abierto se
+        # publica recién a la noche (los archivos de fin de día de CME salen 18:00 hora
+        # central), así que la foto previa a la apertura trae el interés abierto YA CERRADO
+        # de la sesión anterior, que es el más fresco que existe. La del cierre trae el
+        # volumen completo del día. Guardar las dos deja medir cuándo rota el dato en vez
+        # de suponerlo.
+        "fase": "previa" if nv.hora_ny(int(ahora.timestamp())).hour < 12 else "cierre",
         "spot": round(spot, 2),
         "vencimientos": [c.get("selected_expiration") for c in cadenas],
         "agregados": agregados,
@@ -160,8 +180,11 @@ def serie(indice: str, dir_datos: str = DIR_DATOS) -> dict:
                 "motivo": "Todavía no hay fotos guardadas."}
 
     por_sesion: dict[str, dict] = {}
+    previas: dict[str, dict] = {}
     for s in fotos:
         por_sesion[s["sesion"]] = s          # la última de cada sesión gana
+        if s.get("fase") == "previa":
+            previas.setdefault(s["sesion"], s)
     dias = [por_sesion[k] for k in sorted(por_sesion)]
 
     filas = []
@@ -175,7 +198,18 @@ def serie(indice: str, dir_datos: str = DIR_DATOS) -> dict:
                 "oi_calls": ag.get("oi_calls"), "oi_puts": ag.get("oi_puts"),
                 "ratio_put_call_oi": ag.get("ratio_put_call_oi"),
                 "ratio_put_call_vol": ag.get("ratio_put_call_vol"),
-                "volumen_total": sum(f["vc"] + f["vp"] for f in s.get("strikes") or [])}
+                "volumen_total": sum(f["vc"] + f["vp"] for f in s.get("strikes") or []),
+                "fase": s.get("fase")}
+        # El interés abierto de la foto previa a la apertura: el de la sesión anterior ya
+        # cerrado. Si difiere del de la foto del cierre, el feed rotó el dato en el medio.
+        pv = previas.get(s["sesion"])
+        if pv:
+            apv = pv.get("agregados") or {}
+            fila["oi_calls_previa"] = apv.get("oi_calls")
+            fila["oi_puts_previa"] = apv.get("oi_puts")
+            fila["oi_roto_en_el_dia"] = (
+                apv.get("oi_calls") != ag.get("oi_calls")
+                or apv.get("oi_puts") != ag.get("oi_puts"))
         if i > 0:
             ant = dias[i - 1].get("agregados") or {}
             for k in ("gex_total", "max_pain", "gamma_cero", "oi_calls", "oi_puts",

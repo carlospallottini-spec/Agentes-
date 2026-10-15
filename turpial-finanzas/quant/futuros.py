@@ -52,6 +52,9 @@ def _cadenas(indice: str, n_vencimientos: int = 4) -> tuple[list[dict], float | 
     spot = base.get("underlying_price")
     cadenas = [base]
     for e in base.get("expirations", [])[1:n_vencimientos]:
+        # Pedidos seguidos al mismo endpoint se topan con el límite de tasa de Yahoo:
+        # el primero pasa y los siguientes vuelven vacíos. Un respiro corto lo evita.
+        time.sleep(0.4)
         c = market.options(indice, expiration=e["ts"])
         if c.get("status") == "ok":
             cadenas.append(c)

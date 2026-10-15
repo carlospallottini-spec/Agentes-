@@ -854,6 +854,37 @@ def test_serie_se_queda_con_la_ultima_foto_de_cada_sesion():
         assert s["serie"][1]["d_gex_total"] == 5.0   # -4 - (-9)
 
 
+def test_serie_detecta_si_el_interes_abierto_roto_en_el_dia():
+    """Comparar la foto previa a la apertura con la del cierre mide el desfase real.
+
+    Si el interés abierto de las dos fotos de una misma sesión es el mismo, el feed no
+    rotó el dato en el medio y el desfase de un día es el que se supone. Si difiere, rotó,
+    y la suposición estaba mal. Mejor medirlo que creerlo.
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        previa = _foto("2026-10-16", "2026-10-16T13:07:00+00:00", -3.0, 100, 120)
+        previa["fase"] = "previa"
+        cierre = _foto("2026-10-16", "2026-10-16T20:48:00+00:00", -4.0, 100, 120)
+        cierre["fase"] = "cierre"
+        snapshots.guardar(previa, d)
+        snapshots.guardar(cierre, d)
+        f = snapshots.serie("^TEST", d)["serie"][0]
+        assert f["fase"] == "cierre", "la fila tiene que ser la foto del cierre"
+        assert f["oi_calls_previa"] == 100
+        assert f["oi_roto_en_el_dia"] is False
+
+        # Ahora una sesión donde el feed SÍ rotó el dato entre las dos fotos.
+        pv2 = _foto("2026-10-17", "2026-10-17T13:07:00+00:00", -3.0, 100, 120)
+        pv2["fase"] = "previa"
+        ci2 = _foto("2026-10-17", "2026-10-17T20:48:00+00:00", -4.0, 155, 166)
+        ci2["fase"] = "cierre"
+        snapshots.guardar(pv2, d)
+        snapshots.guardar(ci2, d)
+        f2 = snapshots.serie("^TEST", d)["serie"][1]
+        assert f2["oi_roto_en_el_dia"] is True, "no detectó que el dato cambió en el día"
+
+
 def test_serie_declara_el_desfase_del_interes_abierto():
     """El oi va un día atrasado respecto del volumen; eso tiene que estar dicho.
 
