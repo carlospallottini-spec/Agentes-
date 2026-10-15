@@ -825,6 +825,50 @@ def _foto(sesion, momento, gex, oi_c, oi_p, strikes=None):
             "strikes": strikes or [{"k": 100.0, "vc": 10, "vp": 5, "oic": oi_c, "oip": oi_p}]}
 
 
+def test_el_parte_de_sesion_marca_donde_esta_el_precio():
+    """El parte ordena los niveles por precio y mete una marca en el lugar del precio.
+
+    Sin esa marca hay que comparar número por número para saber qué está arriba y qué
+    abajo, que es justo lo que no se puede hacer a las nueve de la mañana.
+    """
+    import importlib.util
+    ruta = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "scripts", "brief_sesion.py")
+    spec = importlib.util.spec_from_file_location("brief_sesion", ruta)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    falso = {
+        "ok": True, "precio": 100.0, "valor_punto": 50.0,
+        "sesion": {"rth_previo": {"c": 98.0}, "atr_sesion": 10.0},
+        "opciones": {"regimen_gamma": "negativa (movimiento amplificado)"},
+        "niveles": [
+            {"nombre": "Muro de calls", "precio": 120.0, "origen": "opciones"},
+            {"nombre": "Pivote R1", "precio": 105.0, "origen": "sesion"},
+            {"nombre": "Pivote S1", "precio": 95.0, "origen": "sesion"},
+            {"nombre": "Muro de puts", "precio": 80.0, "origen": "opciones"},
+            {"nombre": "VWAP de sesión", "precio": 99.0, "origen": "sesion"},
+        ],
+    }
+    original = mod.futuros.tablero
+    try:
+        mod.futuros.tablero = lambda *a, **k: falso
+        texto = mod.parte("XX=F")
+    finally:
+        mod.futuros.tablero = original
+
+    lineas = texto.split("\n")
+    i_marca = next(i for i, l in enumerate(lineas) if "── precio" in l)
+    arriba = "\n".join(lineas[:i_marca])
+    abajo = "\n".join(lineas[i_marca:])
+    assert "Muro de calls" in arriba and "Pivote R1" in arriba
+    assert "Pivote S1" in abajo and "Muro de puts" in abajo
+    # El VWAP no va: antes de la apertura todavía no existe.
+    assert "VWAP" not in texto, "incluyó un nivel que no existe antes de abrir"
+    assert "+2.00" in texto, "no calculó el hueco contra el cierre previo"
+    assert "◆" in arriba, "no distingue los niveles de opciones"
+
+
 def test_snapshot_no_duplica_la_misma_captura():
     """Correr el script dos veces el mismo minuto no debe inventar una observación."""
     import tempfile
