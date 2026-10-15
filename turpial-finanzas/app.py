@@ -18,6 +18,7 @@ from oracle import scheduler, store, watchlist
 from oracle.earnings import estimate_next_earnings
 from quant import engine as quant_engine
 from quant import futuros as quant_futuros
+from quant import snapshots as quant_snapshots
 from connectors import sec_edgar as sec
 
 app = FastAPI(title="Turpial Finanzas", description="Plataforma de inversión todo-en-uno")
@@ -98,6 +99,19 @@ def pagina_futuros() -> FileResponse:
 @app.get("/api/futuros/contratos")
 def api_futuros_contratos() -> JSONResponse:
     return JSONResponse(content=quant_futuros.contratos())
+
+
+@app.get("/api/futuros/oi/{indice}")
+def api_futuros_oi(indice: str) -> JSONResponse:
+    """Serie diaria propia de interés abierto y GEX, con el cambio día a día.
+
+    El feed no tiene histórico de interés abierto, así que la serie se fabrica guardando
+    una foto por día (`scripts/snapshot_oi.py`). Acá sólo se lee lo acumulado.
+    """
+    rep = quant_snapshots.serie("^" + indice.upper().lstrip("^"))
+    if not rep.get("ok"):
+        raise HTTPException(status_code=404, detail=rep.get("motivo", "Sin histórico."))
+    return JSONResponse(content=rep)
 
 
 @app.get("/api/futuros/toques/{symbol:path}")

@@ -15,7 +15,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from quant import (backtest, intradia, markov, momentum, niveles, opciones,  # noqa: E402
-                   optimizacion, ou, pairs, regimen_vol, scan, toques)
+                   optimizacion, ou, pairs, regimen_vol, scan, snapshots, toques)
 from quant.stats import chi2_sf, normal_cdf, ols, quantile  # noqa: E402
 from quant.stats import wilson as stats_wilson  # noqa: E402
 from quant.strategies import FLAT, LONG, SHORT, ou_position, regime_allows  # noqa: E402
@@ -814,6 +814,79 @@ def test_toque_sin_resolver_no_suma_a_ningun_lado():
     assert acc["N"]["toques"] == 1
     assert acc["N"]["aguanto"] == 0 and acc["N"]["rompio"] == 0
     assert acc["N"]["sin_resolver"] >= 1
+
+
+def _foto(sesion, momento, gex, oi_c, oi_p, strikes=None):
+    return {"ok": True, "indice": "^TEST", "sesion": sesion, "momento": momento,
+            "spot": 100.0, "vencimientos": [1],
+            "agregados": {"gex_total": gex, "oi_calls": oi_c, "oi_puts": oi_p,
+                          "max_pain": 100.0, "gamma_cero": 99.0,
+                          "muro_calls": 110.0, "muro_puts": 90.0},
+            "strikes": strikes or [{"k": 100.0, "vc": 10, "vp": 5, "oic": oi_c, "oip": oi_p}]}
+
+
+def test_snapshot_no_duplica_la_misma_captura():
+    """Correr el script dos veces el mismo minuto no debe inventar una observación."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        f = _foto("2026-10-15", "2026-10-15T20:48:00+00:00", -10.0, 100, 120)
+        r1 = snapshots.guardar(f, d)
+        r2 = snapshots.guardar(f, d)
+        assert r1["duplicada"] is False and r1["total"] == 1
+        assert r2["duplicada"] is True, "duplicó la misma captura"
+        assert len(snapshots.leer("^TEST", d)) == 1
+
+
+def test_serie_se_queda_con_la_ultima_foto_de_cada_sesion():
+    """Si hubo varias capturas intradía, la que vale es la del cierre."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        snapshots.guardar(_foto("2026-10-15", "2026-10-15T14:00:00+00:00", -1.0, 100, 100), d)
+        snapshots.guardar(_foto("2026-10-15", "2026-10-15T20:48:00+00:00", -9.0, 111, 122), d)
+        snapshots.guardar(_foto("2026-10-16", "2026-10-16T20:48:00+00:00", -4.0, 131, 142), d)
+        s = snapshots.serie("^TEST", d)
+        assert s["n"] == 2, f"contó capturas en vez de sesiones: {s['n']}"
+        assert s["capturas"] == 3
+        # De la sesión del 15 tiene que quedar la de las 20:48, no la de las 14:00.
+        assert s["serie"][0]["gex_total"] == -9.0
+        # Y el cambio se calcula contra ESA, no contra la intradía.
+        assert s["serie"][1]["d_oi_calls"] == 20     # 131 - 111
+        assert s["serie"][1]["d_gex_total"] == 5.0   # -4 - (-9)
+
+
+def test_serie_declara_el_desfase_del_interes_abierto():
+    """El oi va un día atrasado respecto del volumen; eso tiene que estar dicho.
+
+    Si queda implícito, alguien regresa cambio de oi contra el retorno siguiente, se
+    equivoca por un día y obtiene un resultado que parece real.
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        snapshots.guardar(_foto("2026-10-15", "2026-10-15T20:48:00+00:00", -9.0, 111, 122), d)
+        assert snapshots.serie("^TEST", d)["desfase_oi"] == -1
+
+
+def test_serie_avisa_que_la_muestra_no_alcanza():
+    """Con 2 sesiones no se mide nada, y el reporte tiene que decirlo solo."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        snapshots.guardar(_foto("2026-10-15", "2026-10-15T20:48:00+00:00", -9.0, 111, 122), d)
+        snapshots.guardar(_foto("2026-10-16", "2026-10-16T20:48:00+00:00", -4.0, 131, 142), d)
+        s = snapshots.serie("^TEST", d)
+        assert s["medible"] is False
+        assert "control al azar" in s["aviso"], "no advierte que falta el control"
+        assert snapshots.serie("^TEST", d + "/vacio")["n"] == 0
+
+
+def test_snapshot_sobrevive_una_linea_rota():
+    """Un archivo con una línea corrupta no debe tirar abajo el histórico entero."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        snapshots.guardar(_foto("2026-10-15", "2026-10-15T20:48:00+00:00", -9.0, 111, 122), d)
+        with open(snapshots.ruta("^TEST", d), "a", encoding="utf-8") as f:
+            f.write("{esto no es json\n")
+        snapshots.guardar(_foto("2026-10-16", "2026-10-16T20:48:00+00:00", -4.0, 131, 142), d)
+        assert len(snapshots.leer("^TEST", d)) == 2
 
 
 def test_enfriamiento_no_recuenta_una_consolidacion_pegada_al_nivel():

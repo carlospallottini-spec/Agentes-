@@ -252,12 +252,23 @@ def options(symbol: str, expiration: int | None = None) -> dict:
     params = {"crumb": crumb}
     if expiration:
         params["date"] = expiration
-    try:
-        data = s.get(_OPTIONS.format(sym=symbol), params=params).json()
-        res = data["optionChain"]["result"][0]
-    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+    # Mismo reintento que las velas: el feed devuelve result=null con HTTP 200 de forma
+    # intermitente. Acá importa más que en ningún lado, porque el snapshot diario de
+    # interés abierto corre UNA vez por día: un fallo transitorio sin reintento pierde
+    # esa observación para siempre y el histórico queda con un agujero.
+    res = None
+    for intento in range(3):
+        try:
+            data = s.get(_OPTIONS.format(sym=symbol), params=params).json()
+            res = data["optionChain"]["result"][0]
+            break
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+            res = None
+            if intento < 2:
+                time.sleep(1.5 * (intento + 1))
+    if res is None:
         return {"symbol": symbol.upper(), "status": "no_data",
-                "reason": "Sin cadena de opciones para ese símbolo."}
+                "reason": "Sin cadena de opciones para ese símbolo (3 intentos)."}
 
     exp_ts = res.get("expirationDates", [])
     quote_meta = (res.get("quote") or {})
