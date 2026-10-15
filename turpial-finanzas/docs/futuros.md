@@ -181,6 +181,60 @@ igual y tiene tests.
 
 ---
 
+## El histórico de interés abierto, fabricado a mano
+
+El feed devuelve **una sola foto del momento**, sin fecha: no hay forma de pedirle el
+interés abierto de una sesión pasada. Y el interés abierto es diario por construcción,
+porque la OCC lo publica a la mañana siguiente — durante la sesión se ven las posiciones
+del cierre anterior. **No existe interés abierto intradía**, en ningún lado y a ningún
+precio.
+
+La única manera de tener la serie es fabricarla. `scripts/snapshot_oi.py` saca una foto por
+día hábil tras el cierre de Nueva York y la deja commiteada: **el repositorio es la base de
+datos**, porque el contenedor donde corre es efímero y cualquier cosa en disco local se
+pierde al reciclarse. Se guarda en `data/opciones/{SPX,NDX}.jsonl`, una línea por captura,
+para que el diff de git muestre exactamente lo que se agregó.
+
+Lo que se captura, dentro de ±8% del spot: interés abierto y volumen por strike, más los
+agregados (GEX total, régimen de gamma, max pain, gamma cero, muros de calls y puts,
+ratios put/call de interés abierto y de volumen).
+
+### El desfase de un día, que es la trampa de todo esto
+
+En una misma fila, **el volumen y el interés abierto no son del mismo día**. El volumen es
+de la sesión en curso; el interés abierto es del cierre anterior. Quien regrese "cambio de
+interés abierto" contra "retorno de la sesión siguiente" sin saber esto se equivoca por un
+día y obtiene un resultado que parece real.
+
+Es exactamente el mismo tipo de error que ya apareció dos veces acá: la alineación por
+timestamp exacto que daba 20 fechas comunes en vez de 2509 entre GC=F y GLD, y el nulo roto
+del Gap-Fade. Por eso `serie()` devuelve `desfase_oi: -1` explícito en vez de dejarlo
+implícito, y hay un test que lo fija.
+
+### Por qué el volumen importa más que lo que se pidió
+
+En un strike de SPX medido el 2026-10-15, el volumen era **126.152** contra un interés
+abierto de **762**. Toda esa actividad abre y muere dentro de la sesión y nunca se convierte
+en interés abierto. Justo lo que mueve al índice intradía —el 0DTE— es lo que el interés
+abierto no ve. Por eso se captura el volumen por strike además del interés abierto: para el
+scalping es el número que de verdad manda.
+
+### Lo que todavía no se puede decir
+
+Nada. Son datos crudos acumulándose. `serie()` lo avisa solo: con menos de 60 sesiones
+cualquier patrón que aparezca es ruido, y cuando haya muestra la hipótesis —si el cambio de
+interés abierto o de GEX predice algo de la sesión siguiente— va a pasar por el mismo
+control al azar que hundió a la tasa de aguante de los niveles.
+
+Un detalle que casi arruina el dataset antes de empezar: `market.options()` no tenía
+reintento, y el feed devuelve `result=null` con HTTP 200 de forma intermitente (me pasó
+mientras armaba esto). En un trabajo que corre **una vez por día**, un fallo transitorio
+pierde esa observación para siempre y deja un agujero en la serie. Ahora reintenta tres
+veces, igual que las velas.
+
+---
+
+
 Investigación cuantitativa, **no** asesoramiento de inversión. Los niveles son referencias
 de precio, no señales de entrada: que mucha gente mire el mismo número no quiere decir que
 el mercado lo respete.
