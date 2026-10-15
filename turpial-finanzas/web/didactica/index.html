@@ -1,0 +1,597 @@
+<title>Muros, gamma y azar</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Explicador en una columna: texto angosto para leer, paneles anchos para tocar. */
+  :root{
+    --papel:#f6f7f9; --panel:#ffffff; --linea:#dfe3ea; --linea-suave:#eceff4;
+    --tinta:#171b22; --tinta-2:#4a5468; --tinta-3:#78839a;
+    --a:#2a66b0; --b:#8a6410; --ref:#8c94a6;
+    --alerta:#a4401f; --ok:#1f6b45;
+    --display:'Fraunces',Georgia,serif;
+    --texto:'Public Sans',system-ui,-apple-system,sans-serif;
+    --dato:'IBM Plex Mono',ui-monospace,monospace;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --papel:#12161f; --panel:#181d28; --linea:#2a3141; --linea-suave:#20262f;
+    --tinta:#e9edf5; --tinta-2:#a8b2c6; --tinta-3:#7b8599;
+    --a:#4a86de; --b:#b8862b; --ref:#8a93a6;
+    --alerta:#e2714c; --ok:#4fbd8a;
+    color-scheme:dark;
+  }}
+  :root[data-theme="dark"]{
+    --papel:#12161f; --panel:#181d28; --linea:#2a3141; --linea-suave:#20262f;
+    --tinta:#e9edf5; --tinta-2:#a8b2c6; --tinta-3:#7b8599;
+    --a:#4a86de; --b:#b8862b; --ref:#8a93a6;
+    --alerta:#e2714c; --ok:#4fbd8a;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--papel);color:var(--tinta);font-family:var(--texto);
+    font-size:16px;line-height:1.65;margin:0}
+  .marco{padding-left:max(16px,env(safe-area-inset-left,0px));
+    padding-right:max(16px,env(safe-area-inset-right,0px));
+    padding-block:clamp(28px,5vw,56px);max-width:1040px;margin-inline:auto;
+    display:grid;gap:clamp(30px,4vw,48px)}
+  .col{max-width:65ch}
+  h1{font-family:var(--display);font-weight:600;font-size:clamp(30px,5.2vw,46px);
+    line-height:1.1;margin:0 0 .35em;text-wrap:balance;letter-spacing:-.015em}
+  h2{font-family:var(--display);font-weight:600;font-size:clamp(21px,2.8vw,27px);
+    line-height:1.2;margin:0 0 .4em;text-wrap:balance}
+  h3{font-family:var(--texto);font-weight:600;font-size:15px;margin:0 0 .3em}
+  p{margin:0 0 .85em}
+  .guia{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--tinta-3);font-weight:600;margin:0 0 .5em}
+  .bajada{font-size:clamp(17px,2.1vw,19px);color:var(--tinta-2);line-height:1.6}
+  .panel{background:var(--panel);border:1px solid var(--linea);border-radius:12px;
+    padding:clamp(14px,2.2vw,20px);min-width:0}
+  .num{font-family:var(--dato);font-variant-numeric:tabular-nums}
+  b,strong{font-weight:600}
+  .cifra{font-family:var(--display);font-weight:400;font-size:clamp(26px,4vw,34px);
+    font-variant-numeric:tabular-nums;line-height:1.05;display:block}
+  .rot{font-size:11.5px;color:var(--tinta-3);letter-spacing:.05em;text-transform:uppercase;
+    font-weight:600}
+  .pie{font-size:12.5px;color:var(--tinta-3);line-height:1.55}
+  .fila{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .cuadricula{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+  button{font:inherit;font-size:14px;font-weight:600;padding:9px 15px;border-radius:9px;
+    border:1px solid var(--linea);background:var(--panel);color:var(--tinta);cursor:pointer}
+  button:hover{border-color:var(--tinta-3)}
+  button.primario{background:var(--a);border-color:var(--a);color:#fff}
+  button:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+  input[type=range]{accent-color:var(--a);width:100%;max-width:340px}
+  select{font:inherit;font-size:14px;padding:8px 11px;border-radius:9px;
+    border:1px solid var(--linea);background:var(--panel);color:var(--tinta)}
+  svg{width:100%;display:block;overflow:visible}
+  .lienzo{position:relative;min-width:0}
+  .ley{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--tinta-2);
+    margin-bottom:8px;align-items:center}
+  .ley i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px;
+    vertical-align:-1px}
+  .aviso{border-left:3px solid var(--alerta);padding:2px 0 2px 14px;color:var(--tinta-2);
+    font-size:14.5px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;
+    font-variant-numeric:tabular-nums;font-family:var(--dato)}
+  th{text-align:right;font-family:var(--texto);font-weight:600;font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.05em;color:var(--tinta-3);
+    padding:6px 8px;border-bottom:1px solid var(--linea)}
+  td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--linea-suave)}
+  th:first-child,td:first-child{text-align:left;font-family:var(--texto)}
+  .scroll-x{overflow-x:auto}
+  .cargando{color:var(--tinta-3);font-size:14px;padding:30px 0;text-align:center}
+  @media (prefers-reduced-motion: no-preference){
+    .aparece{animation:surge .5s ease-out both}
+    @keyframes surge{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  }
+</style>
+
+<div class="marco">
+
+  <header class="col">
+    <p class="guia">Estructura de opciones · ES y NQ</p>
+    <h1>Muros, gamma y azar</h1>
+    <p class="bajada">Tres cosas que se pueden tocar en vez de creer. Cómo se resuelve un
+      toque contra un nivel, por qué la tasa de aguante que sale de medirlo no significa
+      lo que parece, y qué hace de verdad la gamma de los dealers.</p>
+    <p class="pie">Datos reales: 27 sesiones de ES en velas de 5 minutos (2.106 velas) y la
+      cadena de opciones de SPX y NDX del 15 de octubre de 2026. El motor de medición es
+      el mismo código que corre en el repositorio, portado línea por línea: reproduce
+      142 de 198 toques, 71,7%, idéntico al original.</p>
+  </header>
+
+  <section>
+    <p class="guia">Uno</p>
+    <h2 class="col">Qué es “aguantar” un nivel</h2>
+    <p class="col">Un nivel es un precio. El precio lo toca cuando una vela entra en una
+      banda de <b>0,10 ATR</b> alrededor. A partir de ahí hay dos salidas: se aleja
+      <b>0,25 ATR</b> hacia el lado del que vino, y eso es <b>aguantó</b>; o se aleja
+      0,25 ATR hacia el otro lado, y eso es <b>rompió</b>. Si en 24 velas no hace ninguna
+      de las dos, no se decide y no cuenta.</p>
+    <p class="col">Elegí una sesión real y mirá cómo se resuelve. Las marcas aparecen sobre
+      la vela exacta donde pasó cada cosa.</p>
+    <div class="panel" style="margin-top:14px">
+      <div class="fila" style="margin-bottom:12px">
+        <select id="sel-sesion" aria-label="Sesión"></select>
+        <select id="sel-nivel" aria-label="Nivel"></select>
+      </div>
+      <div class="ley" id="ley-1"></div>
+      <div class="lienzo"><svg id="svg-sesion" role="img" aria-label="Velas de la sesión con el nivel elegido"></svg></div>
+      <div class="pie" id="pie-sesion" style="margin-top:10px">—</div>
+    </div>
+    <p class="col" style="margin-top:16px">Fijate en una asimetría del procedimiento. Una
+      vela que toca una resistencia <b>desde abajo</b> casi siempre cierra por debajo del
+      nivel: ya arranca más cerca de la condición de “aguantó” que de la de “rompió”. Esa
+      ventaja no es del mercado, es de cómo está definida la medición. Eso es lo que el
+      módulo siguiente pone a prueba.</p>
+  </section>
+
+  <section>
+    <p class="guia">Dos</p>
+    <h2 class="col">El experimento: ¿y si el nivel fuera cualquier precio?</h2>
+    <p class="col">Los niveles de verdad —máximos y mínimos previos, Globex, pivotes—
+      aguantan el <b class="num">71,7%</b> de los toques sobre estas 27 sesiones. Suena a
+      ventaja. La pregunta correcta no es si 71,7% es alto, sino <b>contra qué</b>.</p>
+    <p class="col">Así que corré el mismo procedimiento con niveles puestos al azar dentro
+      del rango de la sesión previa, en la misma cantidad y con las mismas reglas. Cada
+      tirada mide un juego completo de niveles inventados sobre las 27 sesiones.</p>
+    <div class="panel" style="margin-top:14px">
+      <div class="fila" style="margin-bottom:14px">
+        <button class="primario" id="b-10">Tirar 10 veces</button>
+        <button id="b-100">Tirar 100 veces</button>
+        <button id="b-reset">Borrar</button>
+        <span class="pie" id="contador">Todavía no tiraste ninguna.</span>
+      </div>
+      <div class="cuadricula" style="margin-bottom:16px">
+        <div><span class="rot">Niveles reales</span>
+          <span class="cifra" style="color:var(--a)">71,7%</span>
+          <span class="pie">142 de 198 toques resueltos</span></div>
+        <div><span class="rot">Niveles al azar</span>
+          <span class="cifra" id="c-azar" style="color:var(--ref)">—</span>
+          <span class="pie" id="c-azar-pie">esperando tiradas</span></div>
+        <div><span class="rot">Veredicto</span>
+          <span class="cifra" id="c-ver">—</span>
+          <span class="pie" id="c-ver-pie">tirá al menos 10 veces</span></div>
+      </div>
+      <div class="ley" id="ley-2"></div>
+      <div class="lienzo"><svg id="svg-hist" role="img" aria-label="Distribución de tasas de aguante de niveles al azar"></svg></div>
+      <div class="pie" style="margin-top:10px">Cada barra cuenta cuántas tiradas al azar
+        cayeron en ese rango de tasa. La línea azul es dónde quedaron los niveles de
+        verdad. Si la línea cae dentro del montón, los niveles reales no se distinguen de
+        precios inventados.</div>
+    </div>
+    <div class="col aviso" style="margin-top:18px">
+      <p style="margin:0">Medido sobre ES y NQ con 200 tiradas, los niveles al azar dan
+      <b>72,5%</b> y los reales <b>71,7%</b>: los de verdad <b>pierden</b>. El p empírico
+      es 0,76. Ninguno de los doce niveles sobrevive a corregir por haberlos probado a
+      todos. El 71,7% medía la mecánica de la medición, no el mercado.</p>
+    </div>
+    <p class="col" style="margin-top:16px">Eso no vuelve inútiles a los niveles. Los vuelve
+      <b>un mapa</b>: dónde está mirando el resto, dónde poner un stop, dónde esperar
+      liquidez. Lo que no son es una probabilidad de rebote.</p>
+  </section>
+
+  <section>
+    <p class="guia">Tres</p>
+    <h2 class="col">Gamma: lo único acá que sí es un mecanismo</h2>
+    <p class="col">Los muros no son niveles psicológicos. Son dónde se acumula el interés
+      abierto, y eso importa porque obliga a quien vendió esas opciones a cubrirse. Con
+      <b>gamma positiva</b>, cubrirse significa vender cuando sube y comprar cuando baja:
+      el movimiento se amortigua. Con <b>gamma negativa</b>, al revés: hay que comprar
+      arriba y vender abajo, y el movimiento se amplifica.</p>
+    <p class="col">Mové el precio supuesto y mirá de qué lado del <b>gamma cero</b> queda. Ese nivel sale del cálculo de Black-Scholes sobre toda la cadena, el mismo que corre en el repositorio: por encima la cobertura amortigua, por debajo amplifica.</p>
+    <div class="panel" style="margin-top:14px">
+      <div class="fila" style="margin-bottom:12px">
+        <select id="sel-indice" aria-label="Índice">
+          <option value="SPX">S&amp;P 500 · SPX</option>
+          <option value="NDX">Nasdaq 100 · NDX</option>
+        </select>
+        <input type="range" id="rng-spot" min="0" max="100" value="50" aria-label="Precio supuesto">
+        <button id="b-spot-real">Volver al precio real</button>
+      </div>
+      <div class="cuadricula" style="margin-bottom:16px">
+        <div><span class="rot">Precio supuesto</span><span class="cifra num" id="g-spot">—</span></div>
+        <div><span class="rot">Contra el gamma cero</span><span class="cifra num" id="g-gex">—</span>
+          <span class="pie" id="g-reg">—</span></div>
+        <div><span class="rot">Los dealers tienen que</span>
+          <span class="pie" id="g-hedge" style="font-size:14.5px;color:var(--tinta-2)">—</span></div>
+      </div>
+      <div class="ley" id="ley-3"></div>
+      <div class="lienzo"><svg id="svg-gamma" role="img" aria-label="Interés abierto por strike"></svg></div>
+      <div class="pie" style="margin-top:10px" id="pie-gamma">—</div>
+    </div>
+    <p class="col" style="margin-top:16px">Esto sí es causal: la cobertura es una obligación
+      mecánica, no una creencia. Pero ojo con el salto de ahí a una señal de entrada. El
+      interés abierto que ves es el del <b>cierre anterior</b> —la cámara compensadora lo
+      publica a la mañana siguiente, así que no existe interés abierto en tiempo real en
+      ningún lado— y estos niveles salen de la cadena del índice, no del flujo de órdenes
+      del futuro.</p>
+  </section>
+
+  <section class="col">
+    <p class="guia">Para cerrar</p>
+    <h2>Qué hacer con esto</h2>
+    <p>El mapa sirve para gestionar riesgo: saber dónde hay un muro te dice dónde puede
+      frenarse un movimiento y dónde un stop queda expuesto. La gamma te dice si el día
+      va a amplificar o amortiguar.</p>
+    <p>Lo que ninguno de los dos te da es una entrada con ventaja medida. En 68 pruebas
+      intradía sobre estos contratos, ninguna llegó a p &lt; 0,05, y con costo cero el
+      Sharpe medio fue −0,11. No es que las comisiones se coman el borde: en NQ el costo
+      es el 4% del movimiento típico de una vela de 5 minutos. Es que no apareció borde
+      que cobrar.</p>
+    <p class="pie">Hecho con el código de <span class="num">quant/toques.py</span>,
+      <span class="num">quant/opciones.py</span> y <span class="num">quant/snapshots.py</span>.
+      Investigación cuantitativa, no asesoramiento de inversión.</p>
+  </section>
+
+</div>
+
+<script type="module">
+const $ = (s) => document.querySelector(s);
+const tinta = (t) => getComputedStyle(document.documentElement).getPropertyValue(t).trim();
+const f1 = (v) => v == null ? '—' : v.toLocaleString('es', {minimumFractionDigits:1, maximumFractionDigits:1});
+const f2 = (v) => v == null ? '—' : v.toLocaleString('es', {minimumFractionDigits:2, maximumFractionDigits:2});
+const f0 = (v) => v == null ? '—' : Math.round(v).toLocaleString('es');
+
+// ---- motor: puerto exacto de quant/toques.py ----
+const TOL = 0.10, MARGEN = 0.25, MAX_BARRAS = 24;
+function recorrer(barras, niveles, atr, acc, traza){
+  const tol = TOL*atr, margen = MARGEN*atr, estado = {};
+  for(let idx=0; idx<barras.length; idx++){
+    const b = barras[idx], alto = b[2], bajo = b[3];
+    for(const nombre of Object.keys(niveles)){
+      const precio = niveles[nombre];
+      const a = acc[nombre] || (acc[nombre] = {toques:0,aguanto:0,rompio:0,ambiguos:0,sin_resolver:0});
+      const st = estado[nombre];
+      const toca = bajo <= precio+tol && alto >= precio-tol;
+      if(st && st.espera){ if(!toca) delete estado[nombre]; continue; }
+      if(!st){
+        if(toca){
+          const anterior = idx>0 ? barras[idx-1][4] : b[1];
+          estado[nombre] = {dir: anterior<precio ? 'abajo':'arriba', i: idx};
+          a.toques++;
+          if(traza) traza.push({tipo:'toque', idx, dir:estado[nombre].dir});
+        }
+        continue;
+      }
+      if(idx <= st.i) continue;
+      const rA = alto >= precio+margen, rB = bajo <= precio-margen;
+      let res = null;
+      if(rA && rB) res = 'ambiguos';
+      else if(st.dir === 'abajo') res = rA ? 'rompio' : (rB ? 'aguanto' : null);
+      else res = rB ? 'rompio' : (rA ? 'aguanto' : null);
+      if(res === null && idx - st.i >= MAX_BARRAS) res = 'sin_resolver';
+      if(res){
+        a[res]++;
+        if(traza) traza.push({tipo:res, idx, desde:st.i, dir:st.dir});
+        estado[nombre] = {espera:true};
+      }
+    }
+  }
+  for(const n of Object.keys(estado)) if(!estado[n].espera) acc[n].sin_resolver++;
+}
+function medir(ses, elegir){
+  const acc = {};
+  for(const s of ses) recorrer(s.barras, elegir(s), s.atr, acc);
+  let res=0, ag=0;
+  for(const k of Object.keys(acc)){ res += acc[k].aguanto + acc[k].rompio; ag += acc[k].aguanto; }
+  return {resueltos:res, aguanto:ag, tasa: res ? 100*ag/res : null};
+}
+function rng(semilla){
+  let s = semilla >>> 0;
+  return () => { s = (Math.imul(s,1103515245) + 12345) >>> 0; return (s % 2147483648)/2147483648; };
+}
+
+let SES = null, PERF = null, TASAS = [], semillaN = 1;
+const REAL = 71.7;
+
+// ---------------- módulo 1 ----------------
+function pintarSesion(){
+  const s = SES[+$('#sel-sesion').value];
+  const nombre = $('#sel-nivel').value;
+  const precio = s.niveles[nombre];
+  const svg = $('#svg-sesion');
+  const W = Math.max(280, svg.parentElement.clientWidth), H = 260;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('height', H);
+
+  const traza = [];
+  recorrer(s.barras, {[nombre]: precio}, s.atr, {}, traza);
+
+  const tol = TOL*s.atr, margen = MARGEN*s.atr;
+  const vals = s.barras.flatMap(b => [b[2], b[3]]).concat([precio+margen, precio-margen]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi-lo)*0.06 || 1; lo -= pad; hi += pad;
+  const mT=10, mB=24, mR=12;
+  // margen izquierdo según la etiqueta más ancha realmente dibujada
+  const prueba = document.createElementNS('http://www.w3.org/2000/svg','text');
+  prueba.setAttribute('font-size','11'); prueba.setAttribute('opacity','0');
+  prueba.setAttribute('font-family', tinta('--dato'));
+  prueba.textContent = f0(hi); svg.appendChild(prueba);
+  const mL = Math.ceil(prueba.getComputedTextLength()) + 14; prueba.remove();
+
+  const x = (i) => mL + (W-mL-mR) * (i + 0.5) / s.barras.length;
+  const y = (v) => mT + (H-mT-mB) * (hi-v)/(hi-lo);
+  const anchoV = Math.max(1.2, (W-mL-mR)/s.barras.length - 1.4);
+  let g = '';
+
+  for(const t of y_ticks(lo, hi, 4)){
+    g += `<line x1="${mL}" y1="${y(t)}" x2="${W-mR}" y2="${y(t)}" stroke="${tinta('--linea-suave')}" stroke-width="1"/>`;
+    g += `<text x="${mL-7}" y="${y(t)+4}" text-anchor="end" font-size="11" font-family="${tinta('--dato')}" fill="${tinta('--tinta-3')}">${f0(t)}</text>`;
+  }
+  // banda de tolerancia y límites de resolución
+  g += `<rect x="${mL}" y="${y(precio+tol)}" width="${W-mL-mR}" height="${Math.max(1,y(precio-tol)-y(precio+tol))}" fill="${tinta('--a')}" opacity="0.13"/>`;
+  g += `<line x1="${mL}" y1="${y(precio)}" x2="${W-mR}" y2="${y(precio)}" stroke="${tinta('--a')}" stroke-width="2"/>`;
+  for(const v of [precio+margen, precio-margen]){
+    g += `<line x1="${mL}" y1="${y(v)}" x2="${W-mR}" y2="${y(v)}" stroke="${tinta('--a')}" stroke-width="1" stroke-dasharray="4 4" opacity="0.65"/>`;
+  }
+
+  s.barras.forEach((b, i) => {
+    const sube = b[4] >= b[1];
+    const col = sube ? tinta('--tinta-2') : tinta('--tinta-3');
+    g += `<line x1="${x(i)}" y1="${y(b[2])}" x2="${x(i)}" y2="${y(b[3])}" stroke="${col}" stroke-width="1"/>`;
+    const y1 = y(Math.max(b[1],b[4])), y2 = y(Math.min(b[1],b[4]));
+    g += `<rect x="${x(i)-anchoV/2}" y="${y1}" width="${anchoV}" height="${Math.max(1, y2-y1)}" fill="${col}"/>`;
+  });
+
+  const marca = {toque:'●', aguanto:'✓', rompio:'✕', sin_resolver:'·', ambiguos:'?'};
+  const colMarca = {toque: tinta('--a'), aguanto: tinta('--ok'), rompio: tinta('--alerta'),
+                    sin_resolver: tinta('--tinta-3'), ambiguos: tinta('--b')};
+  for(const t of traza){
+    const b = s.barras[t.idx];
+    const yy = t.tipo === 'toque' ? y(b[2]) - 11 : y(b[2]) - 11;
+    g += `<text x="${x(t.idx)}" y="${yy}" text-anchor="middle" font-size="13" font-weight="600" fill="${colMarca[t.tipo]}">${marca[t.tipo]}</text>`;
+  }
+  svg.innerHTML = g;
+
+  $('#ley-1').innerHTML =
+    `<span><i style="background:${tinta('--a')};opacity:.3"></i>banda de toque (±0,10 ATR)</span>`+
+    `<span style="color:${tinta('--a')}">● tocó</span>`+
+    `<span style="color:${tinta('--ok')}">✓ aguantó</span>`+
+    `<span style="color:${tinta('--alerta')}">✕ rompió</span>`+
+    `<span style="color:${tinta('--tinta-3')}">· sin resolver</span>`;
+
+  const hubo = traza.filter(t => t.tipo !== 'toque');
+  const nTocó = traza.filter(t => t.tipo === 'toque').length;
+  $('#pie-sesion').innerHTML = nTocó === 0
+    ? `En esta sesión el precio nunca entró en la banda de <b>${nombre}</b> (${f2(precio)}). ATR de sesión ${f1(s.atr)} puntos, así que la banda es de ±${f2(tol)} y la resolución pide ±${f2(margen)}.`
+    : `<b>${nombre}</b> en ${f2(precio)} · ATR ${f1(s.atr)} → banda ±${f2(tol)}, resolución ±${f2(margen)}. `+
+      `Tocó ${nTocó} ${nTocó===1?'vez':'veces'}: ${hubo.map(t => `${t.tipo === 'aguanto' ? 'aguantó' : t.tipo === 'rompio' ? 'rompió' : t.tipo.replace('_',' ')} (vino desde ${t.dir})`).join(', ') || 'sin resolver al cierre'}.`;
+}
+function y_ticks(lo, hi, n){
+  const paso = (hi-lo)/n, out = [];
+  for(let i=0;i<=n;i++) out.push(lo + paso*i);
+  return out;
+}
+
+// ---------------- módulo 2 ----------------
+function tirar(n){
+  const claves = Object.keys(SES[0].niveles).length;
+  for(let r=0; r<n; r++){
+    const az = rng(20261015 + (semillaN++)*7919);
+    const m = medir(SES, (s) => {
+      const lo = s.prev.l - s.atr, hi = s.prev.h + s.atr, f = {};
+      for(let j=0;j<claves;j++) f['azar'+j] = lo + az()*(hi-lo);
+      return f;
+    });
+    if(m.resueltos > 0) TASAS.push(m.tasa);
+  }
+  pintarHist();
+}
+function pintarHist(){
+  const svg = $('#svg-hist');
+  const W = Math.max(280, svg.parentElement.clientWidth), H = 220;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('height', H);
+  $('#contador').textContent = TASAS.length
+    ? `${TASAS.length} tirada${TASAS.length===1?'':'s'} al azar.`
+    : 'Todavía no tiraste ninguna.';
+
+  if(!TASAS.length){
+    svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" font-size="13" fill="${tinta('--tinta-3')}">Tirá para ver la distribución.</text>`;
+    $('#c-azar').textContent = '—'; $('#c-azar-pie').textContent = 'esperando tiradas';
+    $('#c-ver').textContent = '—'; $('#c-ver-pie').textContent = 'tirá al menos 10 veces';
+    $('#ley-2').innerHTML = '';
+    return;
+  }
+
+  const orden = TASAS.slice().sort((a,b)=>a-b);
+  const media = TASAS.reduce((a,b)=>a+b,0)/TASAS.length;
+  const p05 = orden[Math.floor(0.05*(orden.length-1))];
+  const p95 = orden[Math.floor(0.95*(orden.length-1))];
+  const peor = orden.filter(v => v >= REAL).length;
+  const p = (peor + 1)/(orden.length + 1);
+
+  $('#c-azar').textContent = f1(media) + '%';
+  $('#c-azar-pie').textContent = `p05 ${f1(p05)} · p95 ${f1(p95)} · ${TASAS.length} tiradas`;
+  const gana = p < 0.05;
+  $('#c-ver').textContent = f2(p);
+  $('#c-ver').style.color = gana ? tinta('--ok') : tinta('--alerta');
+  $('#c-ver-pie').textContent = TASAS.length < 10 ? 'tirá al menos 10 veces'
+    : (gana ? 'los reales superan al azar' : 'no se distinguen del azar');
+
+  const lo = Math.min(...orden, REAL) - 1, hi = Math.max(...orden, REAL) + 1;
+  const nb = Math.min(26, Math.max(7, Math.round(Math.sqrt(TASAS.length)*2)));
+  const anchoB = (hi-lo)/nb;
+  const cubos = new Array(nb).fill(0);
+  orden.forEach(v => { cubos[Math.min(nb-1, Math.floor((v-lo)/anchoB))]++; });
+  const maxC = Math.max(...cubos);
+
+  const mT=12, mB=28, mR=10;
+  const prueba = document.createElementNS('http://www.w3.org/2000/svg','text');
+  prueba.setAttribute('font-size','11'); prueba.setAttribute('opacity','0');
+  prueba.textContent = String(maxC); svg.appendChild(prueba);
+  const mL = Math.ceil(prueba.getComputedTextLength()) + 14; prueba.remove();
+
+  const x = (v) => mL + (W-mL-mR)*(v-lo)/(hi-lo);
+  const y = (c) => mT + (H-mT-mB)*(1 - c/maxC);
+  let g = '';
+  for(let i=0;i<=3;i++){
+    const c = maxC*i/3;
+    g += `<line x1="${mL}" y1="${y(c)}" x2="${W-mR}" y2="${y(c)}" stroke="${tinta('--linea-suave')}" stroke-width="1"/>`;
+    g += `<text x="${mL-7}" y="${y(c)+4}" text-anchor="end" font-size="11" font-family="${tinta('--dato')}" fill="${tinta('--tinta-3')}">${Math.round(c)}</text>`;
+  }
+  cubos.forEach((c,i) => {
+    if(!c) return;
+    const x0 = x(lo + i*anchoB), x1 = x(lo + (i+1)*anchoB);
+    g += `<rect x="${x0}" y="${y(c)}" width="${Math.max(1, x1-x0-1.5)}" height="${Math.max(1, y(0)-y(c))}" fill="${tinta('--ref')}" opacity="0.55" rx="2"/>`;
+  });
+  g += `<line x1="${x(REAL)}" y1="${mT-4}" x2="${x(REAL)}" y2="${y(0)+5}" stroke="${tinta('--a')}" stroke-width="2"/>`;
+  g += `<text x="${x(REAL)}" y="${mT-8}" text-anchor="middle" font-size="11.5" font-weight="600" fill="${tinta('--a')}">reales 71,7%</text>`;
+  for(let i=0;i<=4;i++){
+    const v = lo + (hi-lo)*i/4;
+    g += `<text x="${x(v)}" y="${H-9}" text-anchor="middle" font-size="11" font-family="${tinta('--dato')}" fill="${tinta('--tinta-3')}">${f0(v)}%</text>`;
+  }
+  svg.innerHTML = g;
+  $('#ley-2').innerHTML =
+    `<span><i style="background:${tinta('--ref')};opacity:.55"></i>tiradas al azar</span>`+
+    `<span><i style="background:${tinta('--a')}"></i>niveles reales</span>`;
+}
+
+// ---------------- módulo 3 ----------------
+function muros(d){
+  // Definición real, la misma del repositorio: mayor interés abierto en calls por encima
+  // del precio y en puts por debajo. Se calcula sobre el precio REAL, no el del control,
+  // porque es una propiedad de la cadena y no de dónde pongas el cursor.
+  let mc = null, mp = null;
+  for(const [k, oic, oip] of d.strikes){
+    if(k > d.spot && (!mc || oic > mc[1])) mc = [k, oic];
+    if(k < d.spot && (!mp || oip > mp[1])) mp = [k, oip];
+  }
+  return {calls: mc, puts: mp};
+}
+function pintarGamma(){
+  const ind = $('#sel-indice').value, d = PERF[ind];
+  const rel = +$('#rng-spot').value / 100;
+  const lo0 = d.strikes[0][0], hi0 = d.strikes[d.strikes.length-1][0];
+  const spot = lo0 + (hi0-lo0)*rel;
+  const g0 = d.gamma_cero;
+  const m = muros(d);
+
+  $('#g-spot').textContent = f0(spot);
+  if(g0 == null){
+    $('#g-gex').textContent = '—';
+    $('#g-reg').textContent = 'sin gamma cero en esta cadena';
+    $('#g-hedge').textContent = 'No se puede decir sin el nivel de gamma cero.';
+  } else {
+    const dist = spot - g0;
+    const arriba = dist >= 0;
+    $('#g-gex').textContent = (dist>=0?'+':'') + f0(dist);
+    $('#g-gex').style.color = arriba ? tinta('--ok') : tinta('--alerta');
+    $('#g-reg').textContent = arriba
+      ? `por encima de ${f0(g0)} · gamma positiva`
+      : `por debajo de ${f0(g0)} · gamma negativa`;
+    $('#g-hedge').textContent = arriba
+      ? 'vender cuando sube y comprar cuando baja. Van en contra del movimiento: el precio tiende a quedarse en rango y los muros frenan más.'
+      : 'comprar cuando sube y vender cuando baja. Empujan a favor del movimiento: los rangos se rompen y los tramos se estiran.';
+  }
+
+  const svg = $('#svg-gamma');
+  const W = Math.max(280, svg.parentElement.clientWidth), H = 240;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('height', H);
+
+  // Un strike con 188.781 contratos aplasta a todos los demás y el perfil queda plano,
+  // justo cuando los muros son lo que hay que ver. Se recorta la escala al percentil 97 y
+  // las barras que se pasan se marcan con una punta: escala lineal, sin engaño, legible.
+  const todos = d.strikes.flatMap(s => [s[1], s[2]]).filter(v => v > 0).sort((a,b) => a-b);
+  const picoReal = todos.length ? todos[todos.length-1] : 1;
+  const maxOI = (todos.length ? todos[Math.floor(0.97*(todos.length-1))] : 1) || 1;
+  const mT=16, mB=26, mR=10;
+  const prueba = document.createElementNS('http://www.w3.org/2000/svg','text');
+  prueba.setAttribute('font-size','11'); prueba.setAttribute('opacity','0');
+  prueba.textContent = f0(maxOI); svg.appendChild(prueba);
+  const mL = Math.ceil(prueba.getComputedTextLength()) + 14; prueba.remove();
+
+  const xs = d.strikes.map(s => s[0]);
+  const kMin = Math.min(...xs), kMax = Math.max(...xs);
+  const x = (k) => mL + (W-mL-mR)*(k - kMin)/(kMax - kMin);
+  const cero = mT + (H-mT-mB)/2;
+  const esc = ((H-mT-mB)/2) / maxOI;
+  const ancho = Math.max(1, (W-mL-mR)/d.strikes.length - 0.5);
+
+  let g = '';
+  g += `<line x1="${mL}" y1="${cero}" x2="${W-mR}" y2="${cero}" stroke="${tinta('--linea')}" stroke-width="1"/>`;
+  const tope = maxOI * esc;                 // altura máxima dibujable a cada lado
+  const punta = (cx, arriba, col) => {      // marca de barra recortada
+    const yy = arriba ? cero - tope : cero + tope;
+    const dy = arriba ? -5 : 5;
+    return `<path d="M ${cx-4} ${yy} L ${cx} ${yy+dy} L ${cx+4} ${yy} Z" fill="${col}"/>`;
+  };
+  for(const [k, oic, oip] of d.strikes){
+    const cx = x(k);
+    if(oic > 0){
+      const h = Math.min(oic, maxOI) * esc;
+      g += `<rect x="${cx-ancho/2}" y="${cero - h}" width="${ancho}" height="${Math.max(0, h)}" fill="${tinta('--a')}"/>`;
+      if(oic > maxOI) g += punta(cx, true, tinta('--a'));
+    }
+    if(oip > 0){
+      const h = Math.min(oip, maxOI) * esc;
+      g += `<rect x="${cx-ancho/2}" y="${cero}" width="${ancho}" height="${Math.max(0, h)}" fill="${tinta('--b')}"/>`;
+      if(oip > maxOI) g += punta(cx, false, tinta('--b'));
+    }
+  }
+  if(g0 != null && g0 >= kMin && g0 <= kMax){
+    g += `<line x1="${x(g0)}" y1="${mT}" x2="${x(g0)}" y2="${H-mB}" stroke="${tinta('--tinta-2')}" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+    g += `<text x="${x(g0)}" y="${mT-4}" text-anchor="middle" font-size="11" font-weight="600" fill="${tinta('--tinta-2')}">gamma cero</text>`;
+  }
+  g += `<line x1="${x(spot)}" y1="${mT}" x2="${x(spot)}" y2="${H-mB}" stroke="${tinta('--tinta')}" stroke-width="2"/>`;
+  for(let i=0;i<=4;i++){
+    const k = kMin + (kMax-kMin)*i/4;
+    g += `<text x="${x(k)}" y="${H-8}" text-anchor="middle" font-size="11" font-family="${tinta('--dato')}" fill="${tinta('--tinta-3')}">${f0(k)}</text>`;
+  }
+  g += `<text x="${mL-7}" y="${cero - maxOI*esc + 10}" text-anchor="end" font-size="11" font-family="${tinta('--dato')}" fill="${tinta('--tinta-3')}">${f0(maxOI)}</text>`;
+  g += `<text x="${mL-7}" y="${cero + maxOI*esc - 2}" text-anchor="end" font-size="11" font-family="${tinta('--dato')}" fill="${tinta('--tinta-3')}">${f0(maxOI)}</text>`;
+  svg.innerHTML = g;
+
+  $('#ley-3').innerHTML =
+    `<span><i style="background:${tinta('--a')}"></i>interés abierto en calls</span>`+
+    `<span><i style="background:${tinta('--b')}"></i>interés abierto en puts</span>`+
+    `<span style="color:${tinta('--tinta-2')}">línea cortada = gamma cero</span>`+
+    `<span style="color:${tinta('--tinta-3')}">▲ barra recortada: pasa del tope del eje</span>`;
+  const mc = m.calls, mp = m.puts;
+  $('#pie-gamma').innerHTML = `Cadena real de ${ind} del ${d.sesion}, strikes dentro de ±8% del precio. `+
+    (mc ? `Muro de calls en <b class="num">${f0(mc[0])}</b> (${f0(mc[1])} contratos). ` : '')+
+    (mp ? `Muro de puts en <b class="num">${f0(mp[0])}</b> (${f0(mp[1])} contratos). ` : '')+
+    (d.max_pain ? `Max pain en <b class="num">${f0(d.max_pain)}</b>. ` : '')+
+    `Eje recortado en ${f0(maxOI)} contratos para que el perfil se lea; el strike más cargado llega a <b class="num">${f0(picoReal)}</b>. `+
+    `El gamma cero sale del cálculo de Black-Scholes sobre toda la cadena, no de una aproximación de esta página.`;
+}
+
+// ---------------- arranque ----------------
+async function iniciar(){
+  const [a, b] = await Promise.all([
+    fetch('sesiones.json').then(r => r.json()),
+    fetch('perfil.json').then(r => r.json()),
+  ]);
+  SES = a; PERF = b;
+
+  $('#sel-sesion').innerHTML = SES.map((s,i) => `<option value="${i}">${s.fecha}</option>`).join('');
+  const nombres = Object.keys(SES[0].niveles);
+  $('#sel-nivel').innerHTML = nombres.map(n => `<option value="${n}">${n}</option>`).join('');
+  $('#sel-sesion').value = String(Math.min(6, SES.length-1));
+  $('#sel-nivel').value = nombres.includes('Máximo RTH previo') ? 'Máximo RTH previo' : nombres[0];
+  $('#sel-sesion').addEventListener('change', pintarSesion);
+  $('#sel-nivel').addEventListener('change', pintarSesion);
+
+  $('#b-10').addEventListener('click', () => tirar(10));
+  $('#b-100').addEventListener('click', () => tirar(100));
+  $('#b-reset').addEventListener('click', () => { TASAS = []; semillaN = 1; pintarHist(); });
+
+  $('#sel-indice').addEventListener('change', () => { ponerSpotReal(); });
+  $('#rng-spot').addEventListener('input', pintarGamma);
+  $('#b-spot-real').addEventListener('click', ponerSpotReal);
+
+  ponerSpotReal();
+  pintarSesion();
+  pintarHist();
+  // Arranca con 20 tiradas ya hechas: la página tiene que decir algo en su primer cuadro.
+  tirar(20);
+  document.querySelectorAll('.panel').forEach(p => p.classList.add('aparece'));
+  addEventListener('resize', () => { pintarSesion(); pintarHist(); pintarGamma(); });
+}
+function ponerSpotReal(){
+  const d = PERF[$('#sel-indice').value];
+  const lo = d.strikes[0][0], hi = d.strikes[d.strikes.length-1][0];
+  $('#rng-spot').value = String(Math.round(100*(d.spot - lo)/(hi - lo)));
+  pintarGamma();
+}
+iniciar();
+</script>
