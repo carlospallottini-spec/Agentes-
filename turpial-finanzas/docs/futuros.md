@@ -238,3 +238,65 @@ veces, igual que las velas.
 Investigación cuantitativa, **no** asesoramiento de inversión. Los niveles son referencias
 de precio, no señales de entrada: que mucha gente mire el mismo número no quiere decir que
 el mercado lo respete.
+
+## El diario: medir si el mapa sirve de verdad
+
+Todo lo medido dice que los niveles no predicen rebotes. Lo que queda sin medir es si el
+mapa igual ayuda a operar mejor: tamaño de posición, dónde va el stop, cómo comportarse
+según el régimen de gamma. Decir "me ayuda" sin medirlo es una sensación, y acá las
+sensaciones ya mintieron dos veces.
+
+```
+python3 scripts/diario.py abrir  MNQ=F largo 1 30150 30050 --nivel "Pivote S1"
+python3 scripts/diario.py cerrar a1b2c3d4 30220 --motivo objetivo
+python3 scripts/diario.py estado
+python3 scripts/diario.py barras      # recupera las velas que falten
+python3 scripts/diario.py analizar
+```
+
+El contexto del día —ATR, régimen de gamma, precio del nivel— lo completa solo desde el
+tablero. A la hora de entrar no hay tiempo de tipear ocho datos, y un diario con fricción
+es un diario vacío.
+
+### Las dos decisiones que separan un diario de un relato
+
+**El plan se registra antes que el resultado.** `abrir` guarda entrada, stop y nivel de
+referencia; `cerrar` guarda la salida. Si las dos llegan en el mismo segundo, el registro
+queda marcado `post_hoc` y el análisis lo **excluye**. Un stop "elegido" después de ver
+cómo terminó el día no mide nada, y sin esa marca el diario se llena de aciertos
+retroactivos sin que nadie mienta a propósito.
+
+**Se guardan las velas de la sesión.** El feed entrega 8 semanas de velas de 5 minutos.
+Sin guardarlas, dentro de tres meses el control al azar sobre los trades viejos es
+imposible de calcular. Es el mismo error que casi arruina el histórico de interés abierto,
+y acá se evita de entrada. Si el guardado falla —una operación cerrada antes de que abra
+el RTH, o un fallo del feed—, `diario.py barras` lo reintenta, y avisa cuáles ya no se
+pueden recuperar.
+
+### Lo que se mide
+
+El resultado se normaliza en **R** (R = riesgo inicial = |entrada − stop|), así un trade de
+1 MNQ y uno de 3 ES son comparables. El análisis devuelve R medio con **error estándar y
+t**, porque sin eso una racha de cinco parece una estrategia, y el intervalo de Wilson para
+la tasa de acierto, que con 5 de 5 sigue admitiendo que puede ser suerte.
+
+Tres cortes, y el segundo testea directamente el consejo que da este repositorio:
+
+| Corte | Qué pregunta |
+|---|---|
+| Por régimen de gamma | ¿Comportarse distinto según el signo tiene respaldo? |
+| Stop dentro / fuera de la banda de ruido (0,25 ATR del nivel) | ¿Poner el stop fuera del ruido mejora el resultado? |
+| Por nivel de referencia | ¿Alguno se destaca, corrigiendo por multiplicidad? |
+
+Por debajo de 30 operaciones con plan previo el reporte se niega a llamar medible a la
+muestra y lo dice con todas las letras: *"lo que hay ahora es contabilidad, no evidencia"*.
+
+### Lo que falta
+
+El control al azar. Repetir cada operación anclada a un **precio sorteado** en vez del
+nivel usado, con el mismo stop y el mismo objetivo, sobre las velas reales de esa sesión.
+Si las operaciones de verdad no le ganan a eso, el nivel no aportó nada — exactamente como
+pasó con la tasa de aguante. Las velas se guardan en `data/diario/barras/` justamente para
+poder correrlo cuando haya muestra.
+
+---

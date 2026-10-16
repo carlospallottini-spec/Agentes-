@@ -15,7 +15,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from quant import (backtest, intradia, markov, momentum, niveles, opciones,  # noqa: E402
-                   optimizacion, ou, pairs, regimen_vol, scan, snapshots, toques)
+                   diario, optimizacion, ou, pairs, regimen_vol, scan, snapshots,
+                   toques)
 from quant.stats import chi2_sf, normal_cdf, ols, quantile  # noqa: E402
 from quant.stats import wilson as stats_wilson  # noqa: E402
 from quant.strategies import FLAT, LONG, SHORT, ou_position, regime_allows  # noqa: E402
@@ -867,6 +868,129 @@ def test_el_parte_de_sesion_marca_donde_esta_el_precio():
     assert "VWAP" not in texto, "incluyó un nivel que no existe antes de abrir"
     assert "+2.00" in texto, "no calculó el hueco contra el cierre previo"
     assert "◆" in arriba, "no distingue los niveles de opciones"
+
+
+_CTX = {"ok": True, "atr_sesion": 400.0, "valor_punto": 2.0,
+        "regimen_gamma": "negativa (movimiento amplificado)", "precio_al_abrir": 30000.0,
+        "niveles": {"Pivote S1": 29900.0, "Muro de puts": 29000.0}}
+
+
+def test_diario_rechaza_el_stop_del_lado_equivocado():
+    """Un stop del lado equivocado es un error de tipeo, y guardarlo contamina la muestra."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        malo = diario.abrir("MNQ=F", "largo", 1, 30000, 30100, dir_datos=d, ctx=_CTX)
+        assert not malo["ok"] and "DEBAJO" in malo["motivo"]
+        malo2 = diario.abrir("MNQ=F", "corto", 1, 30000, 29900, dir_datos=d, ctx=_CTX)
+        assert not malo2["ok"] and "ENCIMA" in malo2["motivo"]
+        # Sin riesgo definido no hay R con qué medir.
+        malo3 = diario.abrir("MNQ=F", "largo", 1, 30000, 30000, dir_datos=d, ctx=_CTX)
+        assert not malo3["ok"]
+        assert diario.leer(d) == [], "guardó una operación inválida"
+
+
+def test_diario_calcula_r_en_las_dos_direcciones():
+    """R = resultado sobre riesgo inicial, con el signo correcto en corto."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        largo = diario.abrir("MNQ=F", "largo", 1, 30000, 29900, dir_datos=d, ctx=_CTX)
+        r = diario.cerrar(largo["operacion"]["id"], 30200, dir_datos=d, barras=[[1, 1, 1, 1, 1]])
+        assert r["operacion"]["resultado_r"] == 2.0          # +200 / 100
+        assert r["operacion"]["dolares"] == 400.0            # 200 pts x 1 x 2.0
+
+        corto = diario.abrir("MNQ=F", "corto", 2, 30000, 30100, dir_datos=d, ctx=_CTX)
+        r2 = diario.cerrar(corto["operacion"]["id"], 29800, dir_datos=d, barras=[[1, 1, 1, 1, 1]])
+        # En corto, bajar es ganar: +200 puntos a favor sobre 100 de riesgo.
+        assert r2["operacion"]["resultado_r"] == 2.0
+        assert r2["operacion"]["dolares"] == 800.0           # x2 contratos
+
+        perdedor = diario.abrir("MNQ=F", "largo", 1, 30000, 29900, dir_datos=d, ctx=_CTX)
+        r3 = diario.cerrar(perdedor["operacion"]["id"], 29900, motivo="stop",
+                           dir_datos=d, barras=[[1, 1, 1, 1, 1]])
+        assert r3["operacion"]["resultado_r"] == -1.0
+
+
+def test_diario_marca_el_stop_dentro_de_la_banda_de_ruido():
+    """Testea el propio consejo: un stop a menos de 0,25 ATR del nivel está en el ruido."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        # Stop a 50 puntos del nivel con ATR 400 -> 0,125 ATR: adentro.
+        cerca = diario.abrir("MNQ=F", "largo", 1, 30000, 29850, nivel="Pivote S1",
+                             nivel_precio=29900.0, dir_datos=d, ctx=_CTX)
+        assert cerca["operacion"]["stop_dentro_del_ruido"] is True
+        # Stop a 200 puntos del nivel -> 0,5 ATR: afuera.
+        lejos = diario.abrir("MNQ=F", "largo", 1, 30000, 29700, nivel="Pivote S1",
+                             nivel_precio=29900.0, dir_datos=d, ctx=_CTX)
+        assert lejos["operacion"]["stop_dentro_del_ruido"] is False
+
+
+def test_diario_separa_las_operaciones_escritas_despues_del_resultado():
+    """Un plan escrito sabiendo el final no mide nada, y el análisis tiene que excluirlo."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        o = diario.abrir("MNQ=F", "largo", 1, 30000, 29900, dir_datos=d, ctx=_CTX)
+        r = diario.cerrar(o["operacion"]["id"], 30300, dir_datos=d, barras=[[1, 1, 1, 1, 1]])
+        assert r["operacion"]["post_hoc"] is True, "no detectó el registro simultáneo"
+        rep = diario.analizar(dir_datos=d)
+        assert rep["n_cerradas"] == 1
+        assert rep["n_limpias"] == 0, "contó una operación post_hoc como evidencia"
+        assert "antes del resultado" in rep["veredicto"]
+
+
+def test_diario_sabe_que_velas_le_faltan():
+    """Si las velas no se guardan al cerrar, el control al azar se pierde para siempre.
+
+    El feed entrega 8 semanas de velas de 5 minutos, así que una sesión sin guardar no se
+    puede reconstruir después. El diario tiene que saber cuáles le faltan para reintentar.
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        o = diario.abrir("MNQ=F", "largo", 1, 30000, 29900, dir_datos=d, ctx=_CTX)
+        idop = o["operacion"]["id"]
+        # Cerrar sin velas (lo que pasa si se cierra antes de que abra el RTH).
+        diario.cerrar(idop, 30200, dir_datos=d, barras=[])
+        falta = diario.barras_faltantes(d)
+        assert len(falta) == 1, f"no detectó la sesión sin velas: {falta}"
+
+        # Guardarlas después cierra el agujero.
+        op = next(x for x in diario.leer(d) if x["id"] == idop)
+        assert diario._guardar_barras(op, d, [[1, 2, 3, 4, 5]]) is True
+        assert diario.barras_faltantes(d) == []
+
+        # Y una operación abierta no cuenta: todavía no tiene sesión que guardar.
+        diario.abrir("MES=F", "corto", 1, 7800, 7850, dir_datos=d, ctx=_CTX)
+        assert diario.barras_faltantes(d) == []
+
+
+def test_diario_no_declara_medible_una_muestra_chica():
+    """Con pocas operaciones una racha parece una estrategia; el reporte tiene que frenarlo."""
+    import tempfile, json as _json
+    with tempfile.TemporaryDirectory() as d:
+        ops = []
+        for i in range(5):
+            ops.append({"id": f"x{i}", "symbol": "MNQ=F", "direccion": "largo",
+                        "contratos": 1, "entrada": 30000, "stop": 29900,
+                        "riesgo_puntos": 100.0, "valor_punto": 2.0,
+                        "abierta_en": f"2026-10-{10 + i}T13:40:00+00:00",
+                        "cerrada_en": f"2026-10-{10 + i}T15:00:00+00:00",
+                        "sesion": f"2026-10-{10 + i}", "atr_sesion": 400.0,
+                        "regimen_gamma": "negativa (movimiento amplificado)",
+                        "cerrada": True, "salida": 30200, "puntos": 200.0,
+                        "resultado_r": 2.0, "dolares": 400.0,
+                        "motivo_salida": "objetivo", "post_hoc": False})
+        os.makedirs(d, exist_ok=True)
+        with open(diario._ruta(d), "w", encoding="utf-8") as f:
+            for o in ops:
+                f.write(_json.dumps(o) + "\n")
+            f.write("{roto\n")          # una línea corrupta no debe tirar abajo el diario
+        rep = diario.analizar(dir_datos=d, minimo=30)
+        assert rep["n_limpias"] == 5
+        assert rep["medible"] is False
+        assert "racha" in rep["veredicto"]
+        assert rep["global"]["r_medio"] == 2.0
+        # Cinco ganadas de cinco: el intervalo tiene que seguir admitiendo que es suerte.
+        assert rep["global"]["ic95_acierto"][0] < 100.0
+        assert "control al azar" in rep["pendiente"]
 
 
 def test_snapshot_no_duplica_la_misma_captura():
